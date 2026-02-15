@@ -300,6 +300,7 @@ Agent(
 - `response_model` — Pydantic model for structured output
 - `max_tokens` — Max response tokens (default: 8192)
 - `temperature` — Sampling temperature
+- `timeout` — Timeout in seconds (raises `asyncio.TimeoutError`)
 
 ### Hooks
 
