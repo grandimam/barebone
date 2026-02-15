@@ -1,5 +1,6 @@
-"""LLM primitives."""
+"""LLM primitives and Agent class."""
 
+from barebone.agent.agent import Agent
 from barebone.agent.core import complete
 from barebone.agent.core import acomplete
 from barebone.agent.core import execute
@@ -15,6 +16,7 @@ from barebone.agent.types import ToolCall
 from barebone.agent.types import Usage
 
 __all__ = [
+    "Agent",
     "complete",
     "acomplete",
     "execute",

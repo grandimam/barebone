@@ -1,12 +1,17 @@
 # barebone
 
-LLM primitives for Python. You own the loop.
+LLM primitives for Python. Build agents your way.
 
 ```python
-from barebone import complete, user
+from barebone import Agent, tool
 
-response = complete("claude-sonnet-4", [user("What is 2+2?")])
-print(response.content)
+@tool
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"72°F in {city}"
+
+agent = Agent("claude-sonnet-4", tools=[get_weather])
+print(agent.run_sync("Weather in Tokyo?").content)
 ```
 
 ## Install
@@ -15,30 +20,78 @@ print(response.content)
 pip install barebone
 ```
 
-## Philosophy
-
-barebone provides LLM primitives — you write the orchestration in Python.
-
-- **`complete()`** — single LLM call
-- **`execute()`** — run a tool
-- **`Tool`** — define tools
-- **`Message`**, **`Response`**, **`ToolCall`** — types
-
-No hidden loops. No magic. Just primitives.
-
-## Basic Usage
+## Quick Start
 
 ```python
-from barebone import complete, user
+from barebone import Agent, tool
 
-messages = [user("Explain quantum computing in one sentence")]
-response = complete("claude-sonnet-4", messages)
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a math expression."""
+    return str(eval(expression))
+
+agent = Agent("claude-sonnet-4", tools=[calculate])
+response = agent.run_sync("What is 123 * 456?")
 print(response.content)
+```
+
+## Agent
+
+The `Agent` class handles the tool loop automatically:
+
+```python
+from barebone import Agent
+
+agent = Agent(
+    model="claude-sonnet-4",
+    tools=[calculate, "Glob", "Read"],  # Mix custom and built-in tools
+    system="You are a helpful assistant.",
+    max_turns=10,  # Safety limit
+)
+
+# Sync
+response = agent.run_sync("What files are here?")
+
+# Async
+response = await agent.run("What files are here?")
+
+# Streaming
+async for event in agent.stream("Write a poem"):
+    if hasattr(event, "text"):
+        print(event.text, end="")
+```
+
+### Multi-turn Conversations
+
+```python
+agent = Agent("claude-sonnet-4")
+
+response = agent.run_sync("My name is Alice.")
+response = agent.run_sync("What's my name?")  # Remembers context
+
+agent.clear_messages()  # Reset conversation
 ```
 
 ## Tools
 
-Define tools as classes:
+### @tool Decorator
+
+```python
+from barebone import tool
+
+@tool
+def search(query: str, limit: int = 10) -> str:
+    """Search for documents."""
+    return f"Found {limit} results for {query}"
+
+@tool("custom_name")
+def my_func(x: int) -> int:
+    return x * 2
+```
+
+### Tool Class
+
+For more control, use the `Tool` class:
 
 ```python
 from barebone import Tool, Param
@@ -46,63 +99,21 @@ from barebone import Tool, Param
 class GetWeather(Tool):
     """Get weather for a city."""
     city: str = Param(description="City name")
+    units: str = Param(default="fahrenheit")
 
     def execute(self) -> str:
-        return f"72°F and sunny in {self.city}"
+        return f"72° in {self.city}"
 ```
 
-## Agent Loop
-
-You own the loop:
-
-```python
-from barebone import complete, execute, user, tool_result
-
-tools = [GetWeather]
-messages = [user("What's the weather in Paris?")]
-
-while True:
-    response = complete("claude-sonnet-4", messages, tools=tools)
-
-    if not response.tool_calls:
-        print(response.content)
-        break
-
-    for tool_call in response.tool_calls:
-        result = execute(tool_call, tools)
-        messages.append(tool_result(tool_call, result))
-```
-
-## Async
-
-```python
-import asyncio
-from barebone import acomplete, aexecute, user, tool_result
-
-async def main():
-    tools = [GetWeather]
-    messages = [user("What's the weather in Tokyo?")]
-
-    while True:
-        response = await acomplete("claude-sonnet-4", messages, tools=tools)
-
-        if not response.tool_calls:
-            print(response.content)
-            break
-
-        for tool_call in response.tool_calls:
-            result = await aexecute(tool_call, tools)
-            messages.append(tool_result(tool_call, result))
-
-asyncio.run(main())
-```
-
-## Built-in Tools
+### Built-in Tools
 
 ```python
 from barebone import Read, Write, Edit, Bash, Glob, Grep
 from barebone import WebFetch, WebSearch, HttpRequest
 from barebone import Python
+
+# Use by name with Agent
+agent = Agent("claude-sonnet-4", tools=["Read", "Bash", "Glob"])
 ```
 
 | Tool | Description |
@@ -120,41 +131,64 @@ from barebone import Python
 
 ## Hooks
 
-Add lifecycle hooks to tool execution:
+Control tool execution:
 
 ```python
-from barebone import Hooks, Deny, tool_result
+from barebone import Agent, Hooks
 
 hooks = Hooks()
 
 @hooks.before
-def validate(tool_call):
+def log_call(tool_call):
+    print(f"Calling: {tool_call.name}")
+
+@hooks.before
+def block_dangerous(tool_call):
     if tool_call.name == "Bash":
-        raise Deny("Bash not allowed")
+        if "rm " in tool_call.arguments.get("command", ""):
+            raise Hooks.Deny("Dangerous command blocked")
 
 @hooks.after
-def log(tool_call, result):
-    print(f"{tool_call.name}: {result[:50]}")
+def log_result(tool_call, result):
+    print(f"Result: {result[:100]}")
 
-# Use hooks.run() instead of execute()
-for tool_call in response.tool_calls:
-    result = hooks.run(tool_call, tools)
-    messages.append(tool_result(tool_call, result))
+agent = Agent("claude-sonnet-4", tools=["Bash"], hooks=hooks)
 ```
 
-## System Prompt
+## Primitives
+
+For full control, use the primitives directly:
 
 ```python
-response = complete(
-    "claude-sonnet-4",
-    messages,
-    system="You are a helpful assistant.",
-)
+from barebone import complete, execute, user, tool_result
+
+tools = [GetWeather]
+messages = [user("What's the weather in Paris?")]
+
+while True:
+    response = complete("claude-sonnet-4", messages, tools=tools)
+
+    if not response.tool_calls:
+        print(response.content)
+        break
+
+    for tc in response.tool_calls:
+        result = execute(tc, tools)
+        messages.append(tool_result(tc, result))
+```
+
+### Async Primitives
+
+```python
+from barebone import acomplete, aexecute
+
+response = await acomplete("claude-sonnet-4", messages, tools=tools)
+result = await aexecute(tool_call, tools)
 ```
 
 ## Memory
 
-Log conversations:
+Persist conversations:
 
 ```python
 from barebone import Memory
@@ -163,7 +197,6 @@ memory = Memory("./chat.db")  # SQLite
 memory.log("user", "Hello")
 memory.log("assistant", "Hi there!")
 
-# Retrieve
 messages = memory.get_messages()
 ```
 
@@ -180,51 +213,58 @@ export OPENROUTER_API_KEY=sk-or-...
 Or pass explicitly:
 
 ```python
-response = complete("claude-sonnet-4", messages, api_key="sk-ant-...")
+agent = Agent("claude-sonnet-4", api_key="sk-ant-...")
 ```
 
 ## API Reference
 
-### `complete(model, messages, **kwargs) -> Response`
+### Agent
 
-Make a single LLM call.
-
-| Param | Type | Description |
-|-------|------|-------------|
-| `model` | `str` | Model name |
-| `messages` | `list[Message]` | Conversation |
-| `system` | `str` | System prompt |
-| `tools` | `list[Tool]` | Available tools |
-| `api_key` | `str` | API key |
-| `max_tokens` | `int` | Max response tokens |
-| `temperature` | `float` | Sampling temperature |
-
-### `execute(tool_call, tools) -> str`
-
-Execute a tool call.
-
-### `user(content) -> Message`
-
-Create a user message.
-
-### `assistant(content) -> Message`
-
-Create an assistant message.
-
-### `tool_result(tool_call, result) -> Message`
-
-Create a tool result message.
-
-### `Hooks`
-
-Composable hooks for tool execution lifecycle.
+```python
+Agent(
+    model: str,
+    tools: list = None,       # Tool classes, @tool functions, or "Read"/"Bash"
+    system: str = None,
+    api_key: str = None,
+    memory: Memory = None,
+    hooks: Hooks = None,
+    max_turns: int = 10,
+)
+```
 
 | Method | Description |
 |--------|-------------|
-| `@hooks.before` | Register a before hook. Raise `Deny` to reject. |
-| `@hooks.after` | Register an after hook. Return value replaces result. |
-| `hooks.run(tool_call, tools)` | Execute with hooks: before → execute → after |
-| `hooks.arun(tool_call, tools)` | Async version of run |
+| `run(prompt)` | Async tool loop, returns Response |
+| `run_sync(prompt)` | Sync wrapper |
+| `stream(prompt)` | Async generator yielding events |
+| `clear_messages()` | Reset conversation |
+| `add_tool(tool)` | Add tool dynamically |
+
+| Property | Description |
+|----------|-------------|
+| `messages` | Conversation history |
+| `tools` | Resolved ToolDefs |
+
+### Primitives
+
+| Function | Description |
+|----------|-------------|
+| `complete(model, messages, **kwargs)` | Single LLM call |
+| `acomplete(model, messages, **kwargs)` | Async LLM call |
+| `execute(tool_call, tools)` | Execute tool |
+| `aexecute(tool_call, tools)` | Async execute |
+| `user(content)` | Create user message |
+| `assistant(content)` | Create assistant message |
+| `tool_result(tool_call, result)` | Create tool result |
+
+### Hooks
+
+| Method | Description |
+|--------|-------------|
+| `@hooks.before` | Before hook. Raise `Deny` to reject. |
+| `@hooks.after` | After hook. Return value replaces result. |
+| `hooks.run(tool_call, tools)` | Execute with hooks |
+| `hooks.arun(tool_call, tools)` | Async execute with hooks |
 
 ## License
 

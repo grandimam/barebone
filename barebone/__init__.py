@@ -1,5 +1,4 @@
-"""LLM primitives for building agents."""
-
+from .agent import Agent
 from .agent import complete
 from .agent import acomplete
 from .agent import execute
@@ -16,6 +15,7 @@ from .agent import Usage
 
 from .tools import Tool
 from .tools import Param
+from .tools import tool
 from .tools import Read
 from .tools import Write
 from .tools import Edit
@@ -32,7 +32,8 @@ from .memory import Memory
 __version__ = "0.1.0"
 
 __all__ = [
-    # Primitives
+    "Agent",
+    "tool",
     "complete",
     "acomplete",
     "execute",
@@ -42,12 +43,10 @@ __all__ = [
     "tool_result",
     "Hooks",
     "Deny",
-    # Types
     "Message",
     "Response",
     "ToolCall",
     "Usage",
-    # Tools
     "Tool",
     "Param",
     "Read",
@@ -60,6 +59,5 @@ __all__ = [
     "WebSearch",
     "HttpRequest",
     "Python",
-    # Memory
     "Memory",
 ]
