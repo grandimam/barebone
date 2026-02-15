@@ -67,21 +67,6 @@ async def acomplete(
     max_tokens: int = 8192,
     temperature: float | None = None,
 ) -> Response:
-    """
-    Make a single LLM call (async).
-
-    Args:
-        model: Model name (e.g., "claude-sonnet-4")
-        messages: Conversation messages
-        system: System prompt
-        tools: Tool classes or definitions
-        api_key: API key (auto-detected from env if not provided)
-        max_tokens: Maximum tokens in response
-        temperature: Sampling temperature
-
-    Returns:
-        Response with content and/or tool_calls
-    """
     router = _get_router(api_key)
 
     tools_schema = None
@@ -104,7 +89,6 @@ def complete(
     messages: list[Message],
     **kwargs: Any,
 ) -> Response:
-    """Make a single LLM call."""
     return asyncio.run(acomplete(model, messages, **kwargs))
 
 
@@ -112,16 +96,6 @@ async def aexecute(
     tool_call: ToolCall,
     tools: list[type[Tool] | ToolDef],
 ) -> str:
-    """
-    Execute a tool call (async).
-
-    Args:
-        tool_call: The tool call from the model
-        tools: List of available tools
-
-    Returns:
-        Tool result as string
-    """
     handlers = {}
     for tool in tools:
         tool_def = resolve_tool(tool)
@@ -142,22 +116,18 @@ async def aexecute(
 
 
 def execute(tool_call: ToolCall, tools: list[type[Tool] | ToolDef]) -> str:
-    """Execute a tool call."""
     return asyncio.run(aexecute(tool_call, tools))
 
 
 def user(content: str) -> Message:
-    """Create a user message."""
     return Message(role="user", content=content)
 
 
 def assistant(content: str) -> Message:
-    """Create an assistant message."""
     return Message(role="assistant", content=content)
 
 
 def tool_result(tool_call: ToolCall, result: str) -> Message:
-    """Create a tool result message."""
     return Message(
         role="tool_result",
         content=result,
