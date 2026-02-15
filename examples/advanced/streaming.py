@@ -1,21 +1,18 @@
-"""
-Streaming pattern.
-
-Stream LLM responses for real-time output.
-"""
-
 import asyncio
+import os
 
 from barebone import astream, user, TextDelta, Done
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 async def basic_streaming():
-    """Basic streaming output."""
     print("=" * 60)
     print("Basic Streaming")
     print("=" * 60)
 
-    async for event in astream("claude-sonnet-4-20250514", [user("Write a haiku about Python.")]):
+    async for event in astream(MODEL, [user("Write a haiku about Python.")], api_key=API_KEY):
         if isinstance(event, TextDelta):
             print(event.text, end="", flush=True)
         elif isinstance(event, Done):
@@ -23,14 +20,13 @@ async def basic_streaming():
 
 
 async def streaming_with_accumulation():
-    """Accumulate streamed content."""
     print("\n" + "=" * 60)
     print("Streaming with Accumulation")
     print("=" * 60)
 
     full_content = ""
 
-    async for event in astream("claude-sonnet-4-20250514", [user("List 3 programming languages.")]):
+    async for event in astream(MODEL, [user("List 3 programming languages.")], api_key=API_KEY):
         if isinstance(event, TextDelta):
             full_content += event.text
             print(event.text, end="", flush=True)
@@ -39,7 +35,6 @@ async def streaming_with_accumulation():
 
 
 async def streaming_with_processing():
-    """Process streamed content in real-time."""
     print("\n" + "=" * 60)
     print("Streaming with Real-time Processing")
     print("=" * 60)
@@ -47,11 +42,10 @@ async def streaming_with_processing():
     word_count = 0
     buffer = ""
 
-    async for event in astream("claude-sonnet-4-20250514", [user("Explain recursion briefly.")]):
+    async for event in astream(MODEL, [user("Explain recursion briefly.")], api_key=API_KEY):
         if isinstance(event, TextDelta):
             buffer += event.text
 
-            # Count complete words
             while " " in buffer:
                 word, buffer = buffer.split(" ", 1)
                 if word:
@@ -59,7 +53,6 @@ async def streaming_with_processing():
 
             print(event.text, end="", flush=True)
 
-    # Count remaining word in buffer
     if buffer.strip():
         word_count += 1
 
@@ -67,7 +60,6 @@ async def streaming_with_processing():
 
 
 async def parallel_streaming():
-    """Stream multiple responses in parallel."""
     print("\n" + "=" * 60)
     print("Parallel Streaming")
     print("=" * 60)
@@ -80,7 +72,7 @@ async def parallel_streaming():
 
     async def stream_one(prompt: str, label: str):
         content = ""
-        async for event in astream("claude-sonnet-4-20250514", [user(prompt)]):
+        async for event in astream(MODEL, [user(prompt)], api_key=API_KEY):
             if isinstance(event, TextDelta):
                 content += event.text
         return label, content

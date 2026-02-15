@@ -1,27 +1,21 @@
-"""
-Parallelization pattern.
-
-Run multiple LLM calls concurrently and aggregate results.
-"""
-
 import asyncio
+import os
 
 from barebone import acomplete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 async def parallel_calls():
-    """Run multiple independent calls in parallel."""
     print("=" * 60)
     print("Parallel Calls")
     print("=" * 60)
 
     topics = ["Python", "Rust", "Go"]
 
-    # Run all calls concurrently
     tasks = [
-        acomplete("claude-sonnet-4-20250514", [
-            user(f"Describe {topic} in one sentence.")
-        ])
+        acomplete(MODEL, [user(f"Describe {topic} in one sentence.")], api_key=API_KEY)
         for topic in topics
     ]
     responses = await asyncio.gather(*tasks)
@@ -31,7 +25,6 @@ async def parallel_calls():
 
 
 async def map_reduce():
-    """Map operation across inputs, then reduce to single output."""
     print("\n" + "=" * 60)
     print("Map-Reduce")
     print("=" * 60)
@@ -42,11 +35,8 @@ async def map_reduce():
         "Robots are assisting in surgical procedures.",
     ]
 
-    # Map: Summarize each document
     tasks = [
-        acomplete("claude-sonnet-4-20250514", [
-            user(f"Extract the key point in 5 words or less: {doc}")
-        ])
+        acomplete(MODEL, [user(f"Extract the key point in 5 words or less: {doc}")], api_key=API_KEY)
         for doc in documents
     ]
     summaries = await asyncio.gather(*tasks)
@@ -56,27 +46,23 @@ async def map_reduce():
     for s in summaries:
         print(f"  - {s}")
 
-    # Reduce: Combine summaries
     combined = "\n".join(summaries)
-    response = await acomplete("claude-sonnet-4-20250514", [
+    response = await acomplete(MODEL, [
         user(f"Combine these points into one sentence:\n{combined}")
-    ])
+    ], api_key=API_KEY)
     print(f"\nCombined: {response.content}")
 
 
 async def voting():
-    """Get multiple responses and pick the best."""
     print("\n" + "=" * 60)
     print("Voting / Best-of-N")
     print("=" * 60)
 
     question = "What's a creative name for a coffee shop?"
 
-    # Generate multiple candidates
     tasks = [
-        acomplete("claude-sonnet-4-20250514", [
-            user(f"{question} Give just the name, nothing else.")
-        ], temperature=1.0)
+        acomplete(MODEL, [user(f"{question} Give just the name, nothing else.")],
+                  api_key=API_KEY, temperature=1.0)
         for _ in range(3)
     ]
     responses = await asyncio.gather(*tasks)
@@ -86,10 +72,9 @@ async def voting():
     for c in candidates:
         print(f"  - {c}")
 
-    # Vote on best
-    response = await acomplete("claude-sonnet-4-20250514", [
+    response = await acomplete(MODEL, [
         user(f"Pick the best coffee shop name and explain why in one sentence:\n{chr(10).join(candidates)}")
-    ])
+    ], api_key=API_KEY)
     print(f"\nWinner: {response.content}")
 
 

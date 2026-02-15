@@ -48,16 +48,16 @@ class AnthropicProvider(Provider):
     CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
 
     def __init__(self, oauth_token: str | None = None, api_key: str | None = None):
-        self.is_oauth = oauth_token is not None and "sk-ant-oat" in oauth_token
+        self.is_oauth = oauth_token is not None
 
         if self.is_oauth:
+            os.environ.pop("ANTHROPIC_API_KEY", None)
             self.client = anthropic.AsyncAnthropic(
-                api_key=None,
                 auth_token=oauth_token,
                 default_headers=self.CLAUDE_CODE_HEADERS,
             )
         else:
-            self.client = anthropic.AsyncAnthropic(api_key=api_key or oauth_token)
+            self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
     @property
     def name(self) -> str:

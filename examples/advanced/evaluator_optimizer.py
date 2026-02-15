@@ -1,28 +1,22 @@
-"""
-Evaluator-Optimizer pattern.
-
-Generate output, evaluate it, refine based on feedback.
-"""
+import os
 
 from barebone import complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 def evaluate_and_optimize(task: str, max_iterations: int = 3) -> str:
-    """Generate, evaluate, and refine until good enough."""
     print("=" * 60)
     print("Evaluator-Optimizer")
     print("=" * 60)
 
-    # Initial generation
-    response = complete("claude-sonnet-4-20250514", [
-        user(task)
-    ])
+    response = complete(MODEL, [user(task)], api_key=API_KEY)
     output = response.content
     print(f"Initial output:\n{output}\n")
 
     for i in range(max_iterations):
-        # Evaluate
-        evaluation = complete("claude-sonnet-4-20250514", [
+        evaluation = complete(MODEL, [
             user(f"""Evaluate this output for the task: "{task}"
 
 Output:
@@ -31,7 +25,7 @@ Output:
 Rate 1-10 and list specific improvements needed.
 If score >= 8, just respond "GOOD".
 """)
-        ]).content
+        ], api_key=API_KEY).content
 
         print(f"Iteration {i + 1} evaluation:\n{evaluation}\n")
 
@@ -39,8 +33,7 @@ If score >= 8, just respond "GOOD".
             print("Output passed evaluation!")
             break
 
-        # Optimize based on feedback
-        response = complete("claude-sonnet-4-20250514", [
+        response = complete(MODEL, [
             user(f"""Improve this output based on feedback.
 
 Original task: {task}
@@ -52,7 +45,7 @@ Feedback:
 {evaluation}
 
 Provide improved output:""")
-        ])
+        ], api_key=API_KEY)
         output = response.content
         print(f"Improved output:\n{output}\n")
 
@@ -60,31 +53,23 @@ Provide improved output:""")
 
 
 def critic_loop(task: str) -> str:
-    """Separate generator and critic models."""
     print("\n" + "=" * 60)
     print("Generator-Critic Loop")
     print("=" * 60)
 
-    # Generator creates
-    output = complete("claude-sonnet-4-20250514", [
-        user(task)
-    ], temperature=0.9).content
-
+    output = complete(MODEL, [user(task)], api_key=API_KEY, temperature=0.9).content
     print(f"Generator:\n{output}\n")
 
-    # Critic reviews
-    critique = complete("claude-sonnet-4-20250514", [
+    critique = complete(MODEL, [
         user(f"""You are a harsh critic. Find 2 specific problems with this:
 
 {output}
 
 Be specific and constructive.""")
-    ], temperature=0.3).content
-
+    ], api_key=API_KEY, temperature=0.3).content
     print(f"Critic:\n{critique}\n")
 
-    # Generator revises
-    final = complete("claude-sonnet-4-20250514", [
+    final = complete(MODEL, [
         user(f"""Revise your work based on this critique:
 
 Original: {output}
@@ -92,7 +77,7 @@ Original: {output}
 Critique: {critique}
 
 Revised version:""")
-    ]).content
+    ], api_key=API_KEY).content
 
     print(f"Revised:\n{final}")
     return final

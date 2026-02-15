@@ -1,10 +1,9 @@
-"""
-Tool Loop pattern.
-
-LLM calls tools until task is complete. This is what Agent does internally.
-"""
+import os
 
 from barebone import complete, execute, user, assistant, tool_result, Tool, Param
+
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
 
 
 class Calculator(Tool):
@@ -33,7 +32,6 @@ class GetFact(Tool):
 
 
 def tool_loop(query: str, tools: list, max_turns: int = 5) -> str:
-    """Run tool loop until LLM stops calling tools."""
     print("=" * 60)
     print("Tool Loop")
     print("=" * 60)
@@ -43,17 +41,14 @@ def tool_loop(query: str, tools: list, max_turns: int = 5) -> str:
     for turn in range(max_turns):
         print(f"\n--- Turn {turn + 1} ---")
 
-        response = complete("claude-sonnet-4-20250514", messages, tools=tools)
+        response = complete(MODEL, messages, tools=tools, api_key=API_KEY)
 
-        # No tool calls = done
         if not response.tool_calls:
             print(f"Final response: {response.content}")
             return response.content
 
-        # Process tool calls
         print(f"Tool calls: {[tc.name for tc in response.tool_calls]}")
 
-        # Add assistant message with tool use
         messages.append(assistant(response.content or ""))
 
         for tc in response.tool_calls:
@@ -65,7 +60,6 @@ def tool_loop(query: str, tools: list, max_turns: int = 5) -> str:
 
 
 def multi_tool_example():
-    """Example with multiple tools."""
     print("\n" + "=" * 60)
     print("Multi-Tool Example")
     print("=" * 60)

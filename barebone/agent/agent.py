@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any, AsyncIterator
 
+from barebone.agent.core import _get_router
 from barebone.agent.hooks import Hooks
-from barebone.agent.router import Router
 from barebone.agent.types import Message, Response, StreamEvent, Done
 from barebone.memory.base import Memory
 from barebone.tools.base import is_tool_class
@@ -38,45 +37,15 @@ def _get_builtin_tools() -> dict[str, type]:
     return _BUILTIN_TOOLS
 
 
-def _create_router(api_key: str | None = None) -> Router:
-    if api_key:
-        if api_key.startswith("sk-ant-oat-"):
-            return Router(anthropic_oauth=api_key)
-        elif api_key.startswith("sk-ant-"):
-            return Router(anthropic_api_key=api_key)
-        elif api_key.startswith("sk-or-"):
-            return Router(openrouter=api_key)
-        return Router(anthropic_api_key=api_key)
-
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if anthropic_key or openrouter_key:
-        return Router(anthropic_api_key=anthropic_key, openrouter=openrouter_key)
-
-    from barebone.auth import TokenManager
-    token_manager = TokenManager.auto()
-    if token_manager.has_credentials:
-        token = asyncio.run(token_manager.get_token())
-        return Router(anthropic_oauth=token)
-
-    raise ValueError(
-        "No credentials found. Either:\n"
-        "  1. Set ANTHROPIC_API_KEY environment variable\n"
-        "  2. Set OPENROUTER_API_KEY environment variable\n"
-        "  3. Pass api_key parameter"
-    )
-
-
 class Agent:
 
     def __init__(
         self,
         model: str,
         *,
+        api_key: str,
         tools: list[Any] | None = None,
         system: str | None = None,
-        api_key: str | None = None,
-        router: Router | None = None,
         memory: Memory | None = None,
         hooks: Hooks | None = None,
         max_turns: int = 10,
@@ -85,7 +54,7 @@ class Agent:
     ):
         self._model = model
         self._system = system
-        self._router = router or _create_router(api_key)
+        self._router = _get_router(api_key)
         self._memory = memory
         self._hooks = hooks
         self._max_turns = max_turns
