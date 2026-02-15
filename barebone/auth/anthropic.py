@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import anthropic
 import base64
 import httpx
