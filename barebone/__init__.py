@@ -1,6 +1,8 @@
 from .agent import Agent
 from .agent import complete
 from .agent import acomplete
+from .agent import stream
+from .agent import astream
 from .agent import execute
 from .agent import aexecute
 from .agent import user
@@ -12,6 +14,8 @@ from .agent import Message
 from .agent import Response
 from .agent import ToolCall
 from .agent import Usage
+from .agent import TextDelta
+from .agent import Done
 
 from .tools import Tool
 from .tools import Param
@@ -36,6 +40,8 @@ __all__ = [
     "tool",
     "complete",
     "acomplete",
+    "stream",
+    "astream",
     "execute",
     "aexecute",
     "user",
@@ -47,6 +53,8 @@ __all__ = [
     "Response",
     "ToolCall",
     "Usage",
+    "TextDelta",
+    "Done",
     "Tool",
     "Param",
     "Read",

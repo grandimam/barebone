@@ -177,13 +177,48 @@ while True:
         messages.append(tool_result(tc, result))
 ```
 
+### Streaming
+
+```python
+from barebone import astream, user, TextDelta, Done
+
+async for event in astream("claude-sonnet-4", [user("Write a poem")]):
+    if isinstance(event, TextDelta):
+        print(event.text, end="", flush=True)
+    elif isinstance(event, Done):
+        print(f"\n\nTokens: {event.response.usage.total_tokens}")
+```
+
+### Structured Output
+
+```python
+from pydantic import BaseModel
+from barebone import complete, user
+
+class Answer(BaseModel):
+    """A structured answer."""
+    answer: str
+    confidence: float
+
+response = complete(
+    "claude-sonnet-4",
+    [user("What is the capital of France?")],
+    response_model=Answer,
+)
+print(response.parsed.answer)       # "Paris"
+print(response.parsed.confidence)   # 0.99
+```
+
 ### Async Primitives
 
 ```python
-from barebone import acomplete, aexecute
+from barebone import acomplete, aexecute, astream
 
 response = await acomplete("claude-sonnet-4", messages, tools=tools)
 result = await aexecute(tool_call, tools)
+
+async for event in astream("claude-sonnet-4", messages):
+    ...
 ```
 
 ## Memory
@@ -251,11 +286,20 @@ Agent(
 |----------|-------------|
 | `complete(model, messages, **kwargs)` | Single LLM call |
 | `acomplete(model, messages, **kwargs)` | Async LLM call |
+| `stream(model, messages, **kwargs)` | Stream response (returns async iterator) |
+| `astream(model, messages, **kwargs)` | Async stream |
 | `execute(tool_call, tools)` | Execute tool |
 | `aexecute(tool_call, tools)` | Async execute |
 | `user(content)` | Create user message |
 | `assistant(content)` | Create assistant message |
 | `tool_result(tool_call, result)` | Create tool result |
+
+**complete/acomplete kwargs:**
+- `system` — System prompt
+- `tools` — List of tools
+- `response_model` — Pydantic model for structured output
+- `max_tokens` — Max response tokens (default: 8192)
+- `temperature` — Sampling temperature
 
 ### Hooks
 

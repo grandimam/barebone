@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from typing import Any
+from typing import AsyncIterator
 from typing import TypeVar
 
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from barebone.agent.router import Router
 from barebone.agent.types import Message
 from barebone.agent.types import Response
+from barebone.agent.types import StreamEvent
 from barebone.agent.types import ToolCall
 from barebone.tools import Tool
 from barebone.tools.base import resolve_tool
@@ -57,12 +59,30 @@ def _get_router(api_key: str | None = None) -> Router:
     )
 
 
+def _model_to_tool_schema(model: type[T]) -> dict[str, Any]:
+    schema = model.model_json_schema()
+    properties = {
+        k: {key: val for key, val in v.items() if key != "title"}
+        for k, v in schema.get("properties", {}).items()
+    }
+    return {
+        "name": model.__name__,
+        "description": model.__doc__ or f"Return a {model.__name__}",
+        "parameters": {
+            "type": "object",
+            "properties": properties,
+            "required": schema.get("required", []),
+        },
+    }
+
+
 async def acomplete(
     model: str,
     messages: list[Message],
     *,
     system: str | None = None,
     tools: list[type[Tool] | ToolDef] | None = None,
+    response_model: type[T] | None = None,
     api_key: str | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
@@ -74,7 +94,10 @@ async def acomplete(
         tool_defs = [resolve_tool(t) for t in tools]
         tools_schema = tools_to_schema(tool_defs)
 
-    return await router.complete(
+    if response_model:
+        tools_schema = [_model_to_tool_schema(response_model)]
+
+    response = await router.complete(
         model=model,
         messages=messages,
         system=system,
@@ -83,6 +106,12 @@ async def acomplete(
         temperature=temperature,
     )
 
+    if response_model and response.tool_calls:
+        tc = response.tool_calls[0]
+        response.parsed = response_model(**tc.arguments)
+
+    return response
+
 
 def complete(
     model: str,
@@ -90,6 +119,42 @@ def complete(
     **kwargs: Any,
 ) -> Response:
     return asyncio.run(acomplete(model, messages, **kwargs))
+
+
+async def astream(
+    model: str,
+    messages: list[Message],
+    *,
+    system: str | None = None,
+    tools: list[type[Tool] | ToolDef] | None = None,
+    api_key: str | None = None,
+    max_tokens: int = 8192,
+    temperature: float | None = None,
+) -> AsyncIterator[StreamEvent]:
+    router = _get_router(api_key)
+
+    tools_schema = None
+    if tools:
+        tool_defs = [resolve_tool(t) for t in tools]
+        tools_schema = tools_to_schema(tool_defs)
+
+    async for event in router.stream(
+        model=model,
+        messages=messages,
+        system=system,
+        tools=tools_schema,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    ):
+        yield event
+
+
+def stream(
+    model: str,
+    messages: list[Message],
+    **kwargs: Any,
+):
+    return astream(model, messages, **kwargs)
 
 
 async def aexecute(
@@ -139,6 +204,8 @@ def tool_result(tool_call: ToolCall, result: str) -> Message:
 __all__ = [
     "complete",
     "acomplete",
+    "stream",
+    "astream",
     "execute",
     "aexecute",
     "user",
