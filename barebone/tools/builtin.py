@@ -4,8 +4,84 @@ import asyncio
 import os
 import re
 from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel
 
 from .base import Tool, Param
+
+
+class QuestionOption(BaseModel):
+    """An option for a multiple-choice question."""
+    label: str
+    description: str
+
+
+class Question(BaseModel):
+    """A question to ask the user."""
+    question: str
+    header: str
+    options: list[QuestionOption]
+    multiSelect: bool = False
+
+
+class AskUserQuestion(Tool):
+    """Ask the user clarifying questions with multiple-choice options.
+
+    Use this tool when you need clarification, additional information,
+    or confirmation from the user before proceeding with a task.
+    Claude generates the questions and options, and the user selects
+    from the provided choices or provides free-text input.
+    """
+
+    questions: list[Question] = Param(
+        description="List of 1-4 questions to ask the user"
+    )
+
+    def _parse_response(self, response: str, options: list[QuestionOption], multi_select: bool) -> str:
+        """Parse user input as option number(s) or free text."""
+        response = response.strip()
+        if not response:
+            return "(no response)"
+
+        try:
+            if multi_select:
+                indices = [int(s.strip()) - 1 for s in response.split(",")]
+            else:
+                indices = [int(response) - 1]
+
+            labels = [
+                options[i].label
+                for i in indices
+                if 0 <= i < len(options)
+            ]
+            return ", ".join(labels) if labels else response
+        except ValueError:
+            # User typed free text instead of a number
+            return response
+
+    def execute(self) -> dict[str, Any]:
+        """Prompt the user with questions and return their answers."""
+        answers: dict[str, str] = {}
+
+        for q in self.questions:
+            print(f"\n{q.header}: {q.question}")
+
+            for i, opt in enumerate(q.options, 1):
+                print(f"  {i}. {opt.label} - {opt.description}")
+
+            if q.multiSelect:
+                print("  (Enter numbers separated by commas, or type your own answer)")
+            else:
+                print("  (Enter a number, or type your own answer)")
+
+            response = input("> ").strip()
+            answers[q.question] = self._parse_response(response, q.options, q.multiSelect)
+
+        return {
+            "questions": [q.model_dump() for q in self.questions],
+            "answers": answers,
+        }
 
 
 class Read(Tool):
@@ -177,6 +253,9 @@ class Grep(Tool):
 
 
 __all__ = [
+    "AskUserQuestion",
+    "Question",
+    "QuestionOption",
     "Read",
     "Write",
     "Edit",
