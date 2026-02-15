@@ -1,12 +1,10 @@
-"""
-Planning pattern.
-
-Generate a plan first, then execute each step.
-"""
-
 import json
+import os
 
 from barebone import complete, user, Tool, Param, execute
+
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
 
 
 class SearchWeb(Tool):
@@ -35,15 +33,13 @@ class ReadFile(Tool):
 
 
 def plan_and_execute(task: str, tools: list) -> str:
-    """Generate plan, then execute step by step."""
     print("=" * 60)
     print("Plan and Execute")
     print("=" * 60)
 
     tool_names = [t.get_name() for t in tools]
 
-    # Step 1: Generate plan
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Create a step-by-step plan for this task.
 Available tools: {tool_names}
 
@@ -54,7 +50,7 @@ Return as JSON array:
   {{"step": 1, "action": "description", "tool": "tool_name or null"}},
   ...
 ]""")
-    ])
+    ], api_key=API_KEY)
 
     try:
         plan = json.loads(response.content)
@@ -65,7 +61,6 @@ Return as JSON array:
     for step in plan:
         print(f"  {step['step']}. {step['action']} (tool: {step.get('tool', 'none')})")
 
-    # Step 2: Execute each step
     print("\nExecuting Plan:")
     results = []
 
@@ -73,10 +68,9 @@ Return as JSON array:
         print(f"\n--- Step {step['step']}: {step['action']} ---")
 
         if step.get("tool"):
-            # Let LLM decide tool parameters
-            response = complete("claude-sonnet-4-20250514", [
+            response = complete(MODEL, [
                 user(f"Execute: {step['action']}")
-            ], tools=tools)
+            ], api_key=API_KEY, tools=tools)
 
             if response.tool_calls:
                 for tc in response.tool_calls:
@@ -86,23 +80,20 @@ Return as JSON array:
             else:
                 results.append(response.content)
         else:
-            # No tool needed, just reason
-            response = complete("claude-sonnet-4-20250514", [
+            response = complete(MODEL, [
                 user(f"Complete this step: {step['action']}\n\nContext from previous steps: {results[-3:] if results else 'None'}")
-            ])
+            ], api_key=API_KEY)
             results.append(response.content)
             print(f"  Result: {response.content[:100]}...")
 
-    # Step 3: Summarize
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"Summarize what was accomplished:\n\nTask: {task}\n\nResults: {results}")
-    ])
+    ], api_key=API_KEY)
 
     return response.content
 
 
 def adaptive_planning(task: str) -> str:
-    """Replan based on execution results."""
     print("\n" + "=" * 60)
     print("Adaptive Planning (Replan on Failure)")
     print("=" * 60)
@@ -111,29 +102,27 @@ def adaptive_planning(task: str) -> str:
     context = []
 
     for attempt in range(max_replans + 1):
-        # Generate/regenerate plan
         context_str = "\n".join(context) if context else "No previous attempts"
 
-        response = complete("claude-sonnet-4-20250514", [
+        response = complete(MODEL, [
             user(f"""Task: {task}
 
 Previous attempts and issues:
 {context_str}
 
 Create a plan that avoids previous issues. Return 2-3 concrete steps.""")
-        ])
+        ], api_key=API_KEY)
         plan = response.content
         print(f"\nPlan (attempt {attempt + 1}):\n{plan}")
 
-        # Simulate execution (in real scenario, actually execute)
-        response = complete("claude-sonnet-4-20250514", [
+        response = complete(MODEL, [
             user(f"""Simulate executing this plan.
 If any step would fail, explain why.
 If all steps succeed, respond with "SUCCESS" and the result.
 
 Plan:
 {plan}""")
-        ])
+        ], api_key=API_KEY)
         result = response.content
 
         if "SUCCESS" in result.upper():

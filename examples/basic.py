@@ -1,25 +1,26 @@
-"""Basic bare example - 5 lines to a working agent."""
+import os
 
-from barebone import Agent, tool
+from dotenv import load_dotenv
+from barebone import Agent
+from barebone import tool
+
+
+load_dotenv()
 
 
 @tool
 def get_weather(city: str) -> str:
-    """Get the current weather for a city."""
     return f"72°F and sunny in {city}"
 
 
 @tool
 def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
     return str(eval(expression))
 
 
 def main():
-    # Create agent - credentials auto-discovered
-    agent = Agent("claude-sonnet-4-20250514", tools=[get_weather, calculate])
-
-    # Run queries
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    agent = Agent("claude-sonnet-4-20250514", api_key=api_key, tools=[get_weather, calculate])
     print(agent.run_sync("What's the weather in Tokyo?").content)
     print(agent.run_sync("What is 123 * 456?").content)
 

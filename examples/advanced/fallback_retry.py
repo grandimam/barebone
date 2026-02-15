@@ -1,22 +1,14 @@
-"""
-Fallback and Retry pattern.
-
-Handle failures gracefully with retries and fallback strategies.
-"""
-
-import random
+import os
 import time
 from typing import Callable
 
 from barebone import complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
 
-def with_retry(
-    fn: Callable,
-    max_retries: int = 3,
-    backoff: float = 1.0,
-) -> any:
-    """Retry a function with exponential backoff."""
+
+def with_retry(fn: Callable, max_retries: int = 3, backoff: float = 1.0) -> any:
     last_error = None
 
     for attempt in range(max_retries):
@@ -32,7 +24,6 @@ def with_retry(
 
 
 def retry_with_modification(task: str, max_retries: int = 3) -> str:
-    """Retry with modified prompts on failure."""
     print("=" * 60)
     print("Retry with Modification")
     print("=" * 60)
@@ -40,21 +31,15 @@ def retry_with_modification(task: str, max_retries: int = 3) -> str:
     errors = []
 
     for attempt in range(max_retries):
-        # Modify prompt based on previous errors
         if errors:
             error_context = f"\n\nPrevious attempts failed:\n" + "\n".join(f"- {e}" for e in errors)
             error_context += "\n\nAvoid these issues."
         else:
             error_context = ""
 
-        response = complete("claude-sonnet-4-20250514", [
-            user(f"{task}{error_context}")
-        ])
-
-        # Simulate validation
+        response = complete(MODEL, [user(f"{task}{error_context}")], api_key=API_KEY)
         result = response.content
 
-        # Check for "errors" (simulated)
         if "error" in result.lower() or len(result) < 10:
             errors.append(f"Attempt {attempt + 1}: Output too short or contained error")
             print(f"Attempt {attempt + 1} failed, retrying...")
@@ -67,19 +52,14 @@ def retry_with_modification(task: str, max_retries: int = 3) -> str:
 
 
 def fallback_chain(task: str) -> str:
-    """Try multiple approaches, fall back on failure."""
     print("\n" + "=" * 60)
     print("Fallback Chain")
     print("=" * 60)
 
     strategies = [
-        ("Direct", lambda t: complete("claude-sonnet-4-20250514", [user(t)]).content),
-        ("Step-by-step", lambda t: complete("claude-sonnet-4-20250514", [
-            user(f"Think step by step: {t}")
-        ]).content),
-        ("Simple", lambda t: complete("claude-sonnet-4-20250514", [
-            user(f"Give a simple, basic answer: {t}")
-        ]).content),
+        ("Direct", lambda t: complete(MODEL, [user(t)], api_key=API_KEY).content),
+        ("Step-by-step", lambda t: complete(MODEL, [user(f"Think step by step: {t}")], api_key=API_KEY).content),
+        ("Simple", lambda t: complete(MODEL, [user(f"Give a simple, basic answer: {t}")], api_key=API_KEY).content),
     ]
 
     for name, strategy in strategies:
@@ -87,7 +67,6 @@ def fallback_chain(task: str) -> str:
             print(f"Trying {name} strategy...")
             result = strategy(task)
 
-            # Validate result (simulated)
             if result and len(result) > 20:
                 print(f"Success with {name} strategy")
                 return result
@@ -100,20 +79,16 @@ def fallback_chain(task: str) -> str:
 
 
 def model_fallback(task: str) -> str:
-    """Fall back to different models."""
     print("\n" + "=" * 60)
     print("Model Fallback")
     print("=" * 60)
 
-    models = [
-        "claude-sonnet-4-20250514",
-        "claude-sonnet-4-20250514",  # Would be different models in production
-    ]
+    models = [MODEL, MODEL]
 
     for model in models:
         try:
             print(f"Trying {model}...")
-            response = complete(model, [user(task)])
+            response = complete(model, [user(task)], api_key=API_KEY)
             print(f"Success with {model}")
             return response.content
         except Exception as e:
@@ -123,17 +98,15 @@ def model_fallback(task: str) -> str:
 
 
 def self_healing(task: str, max_attempts: int = 3) -> str:
-    """Let the LLM fix its own errors."""
     print("\n" + "=" * 60)
     print("Self-Healing")
     print("=" * 60)
 
-    response = complete("claude-sonnet-4-20250514", [user(task)])
+    response = complete(MODEL, [user(task)], api_key=API_KEY)
     result = response.content
 
     for attempt in range(max_attempts):
-        # Validate (ask LLM to check itself)
-        validation = complete("claude-sonnet-4-20250514", [
+        validation = complete(MODEL, [
             user(f"""Check if this response correctly addresses the task.
 If there are errors or issues, describe them.
 If it's correct, respond with "VALID".
@@ -141,7 +114,7 @@ If it's correct, respond with "VALID".
 Task: {task}
 
 Response: {result}""")
-        ]).content
+        ], api_key=API_KEY).content
 
         print(f"Validation {attempt + 1}: {validation[:100]}...")
 
@@ -149,8 +122,7 @@ Response: {result}""")
             print("Response validated successfully")
             return result
 
-        # Self-heal
-        result = complete("claude-sonnet-4-20250514", [
+        result = complete(MODEL, [
             user(f"""Fix the issues identified:
 
 Task: {task}
@@ -160,7 +132,7 @@ Previous response: {result}
 Issues: {validation}
 
 Fixed response:""")
-        ]).content
+        ], api_key=API_KEY).content
 
         print(f"Self-healed attempt {attempt + 1}")
 

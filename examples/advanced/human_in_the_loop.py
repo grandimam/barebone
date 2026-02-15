@@ -1,10 +1,9 @@
-"""
-Human-in-the-Loop pattern.
-
-Pause for human approval or input at critical points.
-"""
+import os
 
 from barebone import complete, execute, user, tool_result, Tool, Param
+
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
 
 
 class SendEmail(Tool):
@@ -25,12 +24,10 @@ class DeleteFile(Tool):
         return f"Deleted {self.path}"
 
 
-# Tools that require human approval
 REQUIRES_APPROVAL = {"SendEmail", "DeleteFile"}
 
 
 def get_human_approval(tool_call) -> tuple[bool, str]:
-    """Get human approval for a tool call."""
     print(f"\n{'='*40}")
     print(f"APPROVAL REQUIRED: {tool_call.name}")
     print(f"Arguments: {tool_call.arguments}")
@@ -44,7 +41,6 @@ def get_human_approval(tool_call) -> tuple[bool, str]:
         reason = input("Reason for rejection: ")
         return False, reason
     else:
-        # Allow modification
         print("Enter modified arguments as key=value, empty to finish:")
         modified = dict(tool_call.arguments)
         while True:
@@ -58,7 +54,6 @@ def get_human_approval(tool_call) -> tuple[bool, str]:
 
 
 def human_approval_loop(query: str, tools: list) -> str:
-    """Tool loop with human approval for sensitive operations."""
     print("=" * 60)
     print("Human-in-the-Loop")
     print("=" * 60)
@@ -66,13 +61,12 @@ def human_approval_loop(query: str, tools: list) -> str:
     messages = [user(query)]
 
     while True:
-        response = complete("claude-sonnet-4-20250514", messages, tools=tools)
+        response = complete(MODEL, messages, tools=tools, api_key=API_KEY)
 
         if not response.tool_calls:
             return response.content
 
         for tc in response.tool_calls:
-            # Check if approval needed
             if tc.name in REQUIRES_APPROVAL:
                 approved, reason = get_human_approval(tc)
                 if not approved:
@@ -86,12 +80,11 @@ def human_approval_loop(query: str, tools: list) -> str:
 
 
 def human_feedback_loop(task: str) -> str:
-    """Iterative refinement with human feedback."""
     print("\n" + "=" * 60)
     print("Human Feedback Loop")
     print("=" * 60)
 
-    output = complete("claude-sonnet-4-20250514", [user(task)]).content
+    output = complete(MODEL, [user(task)], api_key=API_KEY).content
 
     while True:
         print(f"\nCurrent output:\n{output}\n")
@@ -100,7 +93,7 @@ def human_feedback_loop(task: str) -> str:
         if feedback.lower() == "done":
             break
 
-        output = complete("claude-sonnet-4-20250514", [
+        output = complete(MODEL, [
             user(f"""Revise based on feedback.
 
 Original task: {task}
@@ -111,44 +104,40 @@ Current output:
 Feedback: {feedback}
 
 Revised:""")
-        ]).content
+        ], api_key=API_KEY).content
 
     return output
 
 
 def human_choice_branch(query: str) -> str:
-    """Let human choose between AI-generated options."""
     print("\n" + "=" * 60)
     print("Human Choice Branch")
     print("=" * 60)
 
-    # Generate options
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""For this request, provide 3 different approaches.
 Number them 1, 2, 3.
 
 Request: {query}""")
-    ])
+    ], api_key=API_KEY)
 
     print(f"Options:\n{response.content}\n")
 
     choice = input("Choose option (1/2/3): ").strip()
 
-    # Execute chosen option
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Execute option {choice} for: {query}
 
 The options were:
 {response.content}
 
 Now implement option {choice} in detail:""")
-    ])
+    ], api_key=API_KEY)
 
     return response.content
 
 
 if __name__ == "__main__":
-    # These examples require interactive input
     print("Example 1: Human Feedback Loop")
     print("-" * 40)
     result = human_feedback_loop("Write a product description for a smart water bottle")

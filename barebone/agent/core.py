@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 from typing import AsyncIterator
 from typing import TypeVar
@@ -20,43 +19,13 @@ from barebone.tools.types import ToolDef
 
 T = TypeVar("T", bound=BaseModel)
 
-_router: Router | None = None
 
-
-def _get_router(api_key: str | None = None) -> Router:
-    global _router
-
-    if api_key:
-        if api_key.startswith("sk-ant-oat-"):
-            return Router(anthropic_oauth=api_key)
-        elif api_key.startswith("sk-ant-"):
-            return Router(anthropic_api_key=api_key)
-        elif api_key.startswith("sk-or-"):
-            return Router(openrouter=api_key)
-        return Router(anthropic_api_key=api_key)
-
-    if _router:
-        return _router
-
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-    if anthropic_key or openrouter_key:
-        _router = Router(anthropic_api_key=anthropic_key, openrouter=openrouter_key)
-        return _router
-
-    from barebone.auth import TokenManager
-    token_manager = TokenManager.auto()
-    if token_manager.has_credentials:
-        token = asyncio.run(token_manager.get_token())
-        _router = Router(anthropic_oauth=token)
-        return _router
-
-    raise ValueError(
-        "No credentials found. Either:\n"
-        "  1. Set ANTHROPIC_API_KEY environment variable\n"
-        "  2. Set OPENROUTER_API_KEY environment variable\n"
-        "  3. Pass api_key parameter"
-    )
+def _get_router(api_key: str) -> Router:
+    if api_key.startswith("sk-ant-oat"):
+        return Router(anthropic_oauth=api_key)
+    if api_key.startswith("sk-or-"):
+        return Router(openrouter=api_key)
+    return Router(anthropic_api_key=api_key)
 
 
 def _model_to_tool_schema(model: type[T]) -> dict[str, Any]:
@@ -80,10 +49,10 @@ async def acomplete(
     model: str,
     messages: list[Message],
     *,
+    api_key: str,
     system: str | None = None,
     tools: list[type[Tool] | ToolDef] | None = None,
     response_model: type[T] | None = None,
-    api_key: str | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
     timeout: float | None = None,
@@ -131,9 +100,9 @@ async def astream(
     model: str,
     messages: list[Message],
     *,
+    api_key: str,
     system: str | None = None,
     tools: list[type[Tool] | ToolDef] | None = None,
-    api_key: str | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
     timeout: float | None = None,

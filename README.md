@@ -3,14 +3,15 @@
 LLM primitives for Python. Build agents your way.
 
 ```python
+import os
 from barebone import Agent, tool
 
 @tool
 def get_weather(city: str) -> str:
-    """Get weather for a city."""
     return f"72°F in {city}"
 
-agent = Agent("claude-sonnet-4", tools=[get_weather])
+api_key = os.environ["ANTHROPIC_API_KEY"]
+agent = Agent("claude-sonnet-4", api_key=api_key, tools=[get_weather])
 print(agent.run_sync("Weather in Tokyo?").content)
 ```
 
@@ -23,14 +24,15 @@ pip install barebone
 ## Quick Start
 
 ```python
+import os
 from barebone import Agent, tool
 
 @tool
 def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
     return str(eval(expression))
 
-agent = Agent("claude-sonnet-4", tools=[calculate])
+api_key = os.environ["ANTHROPIC_API_KEY"]
+agent = Agent("claude-sonnet-4", api_key=api_key, tools=[calculate])
 response = agent.run_sync("What is 123 * 456?")
 print(response.content)
 ```
@@ -40,10 +42,13 @@ print(response.content)
 The `Agent` class handles the tool loop automatically:
 
 ```python
+import os
 from barebone import Agent
 
+api_key = os.environ["ANTHROPIC_API_KEY"]
 agent = Agent(
-    model="claude-sonnet-4",
+    "claude-sonnet-4",
+    api_key=api_key,
     tools=[calculate, "Glob", "Read"],  # Mix custom and built-in tools
     system="You are a helpful assistant.",
     max_turns=10,  # Safety limit
@@ -64,7 +69,7 @@ async for event in agent.stream("Write a poem"):
 ### Multi-turn Conversations
 
 ```python
-agent = Agent("claude-sonnet-4")
+agent = Agent("claude-sonnet-4", api_key=api_key)
 
 response = agent.run_sync("My name is Alice.")
 response = agent.run_sync("What's my name?")  # Remembers context
@@ -81,7 +86,6 @@ from barebone import tool
 
 @tool
 def search(query: str, limit: int = 10) -> str:
-    """Search for documents."""
     return f"Found {limit} results for {query}"
 
 @tool("custom_name")
@@ -113,7 +117,7 @@ from barebone import WebFetch, WebSearch, HttpRequest
 from barebone import Python
 
 # Use by name with Agent
-agent = Agent("claude-sonnet-4", tools=["Read", "Bash", "Glob"])
+agent = Agent("claude-sonnet-4", api_key=api_key, tools=["Read", "Bash", "Glob"])
 ```
 
 | Tool | Description |
@@ -152,7 +156,7 @@ def block_dangerous(tool_call):
 def log_result(tool_call, result):
     print(f"Result: {result[:100]}")
 
-agent = Agent("claude-sonnet-4", tools=["Bash"], hooks=hooks)
+agent = Agent("claude-sonnet-4", api_key=api_key, tools=["Bash"], hooks=hooks)
 ```
 
 ## Primitives
@@ -160,13 +164,15 @@ agent = Agent("claude-sonnet-4", tools=["Bash"], hooks=hooks)
 For full control, use the primitives directly:
 
 ```python
+import os
 from barebone import complete, execute, user, tool_result
 
+api_key = os.environ["ANTHROPIC_API_KEY"]
 tools = [GetWeather]
 messages = [user("What's the weather in Paris?")]
 
 while True:
-    response = complete("claude-sonnet-4", messages, tools=tools)
+    response = complete("claude-sonnet-4", messages, api_key=api_key, tools=tools)
 
     if not response.tool_calls:
         print(response.content)
@@ -182,7 +188,7 @@ while True:
 ```python
 from barebone import astream, user, TextDelta, Done
 
-async for event in astream("claude-sonnet-4", [user("Write a poem")]):
+async for event in astream("claude-sonnet-4", [user("Write a poem")], api_key=api_key):
     if isinstance(event, TextDelta):
         print(event.text, end="", flush=True)
     elif isinstance(event, Done):
@@ -196,13 +202,13 @@ from pydantic import BaseModel
 from barebone import complete, user
 
 class Answer(BaseModel):
-    """A structured answer."""
     answer: str
     confidence: float
 
 response = complete(
     "claude-sonnet-4",
     [user("What is the capital of France?")],
+    api_key=api_key,
     response_model=Answer,
 )
 print(response.parsed.answer)       # "Paris"
@@ -214,10 +220,10 @@ print(response.parsed.confidence)   # 0.99
 ```python
 from barebone import acomplete, aexecute, astream
 
-response = await acomplete("claude-sonnet-4", messages, tools=tools)
+response = await acomplete("claude-sonnet-4", messages, api_key=api_key, tools=tools)
 result = await aexecute(tool_call, tools)
 
-async for event in astream("claude-sonnet-4", messages):
+async for event in astream("claude-sonnet-4", messages, api_key=api_key):
     ...
 ```
 
@@ -237,18 +243,13 @@ messages = memory.get_messages()
 
 ## Authentication
 
-Set environment variables:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-# or
-export OPENROUTER_API_KEY=sk-or-...
-```
-
-Or pass explicitly:
+Pass the API key explicitly:
 
 ```python
-agent = Agent("claude-sonnet-4", api_key="sk-ant-...")
+import os
+
+api_key = os.environ["ANTHROPIC_API_KEY"]  # or OPENROUTER_API_KEY
+agent = Agent("claude-sonnet-4", api_key=api_key)
 ```
 
 ## API Reference
@@ -258,9 +259,10 @@ agent = Agent("claude-sonnet-4", api_key="sk-ant-...")
 ```python
 Agent(
     model: str,
+    *,
+    api_key: str,             # Required
     tools: list = None,       # Tool classes, @tool functions, or "Read"/"Bash"
     system: str = None,
-    api_key: str = None,
     memory: Memory = None,
     hooks: Hooks = None,
     max_turns: int = 10,
@@ -295,6 +297,7 @@ Agent(
 | `tool_result(tool_call, result)` | Create tool result |
 
 **complete/acomplete kwargs:**
+- `api_key` — Required. Anthropic or OpenRouter API key
 - `system` — System prompt
 - `tools` — List of tools
 - `response_model` — Pydantic model for structured output

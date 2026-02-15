@@ -1,30 +1,26 @@
-"""
-Orchestrator-Worker pattern.
-
-One LLM breaks down tasks and delegates to worker LLMs.
-"""
-
 import asyncio
 import json
+import os
 
 from barebone import acomplete, complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 def orchestrator_worker(task: str) -> str:
-    """Orchestrator breaks down task, workers execute subtasks."""
     print("=" * 60)
     print("Orchestrator-Worker")
     print("=" * 60)
 
-    # Orchestrator: Break down the task
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Break this task into 2-3 subtasks.
 Return as JSON array of strings.
 
 Task: {task}
 
 Example output: ["subtask 1", "subtask 2"]""")
-    ])
+    ], api_key=API_KEY)
 
     try:
         subtasks = json.loads(response.content)
@@ -35,37 +31,33 @@ Example output: ["subtask 1", "subtask 2"]""")
     for i, st in enumerate(subtasks, 1):
         print(f"  {i}. {st}")
 
-    # Workers: Execute each subtask
     results = []
     for subtask in subtasks:
-        result = complete("claude-sonnet-4-20250514", [
+        result = complete(MODEL, [
             user(f"Complete this task concisely: {subtask}")
-        ]).content
+        ], api_key=API_KEY).content
         results.append(result)
         print(f"\nWorker completed: {subtask[:50]}...")
 
-    # Orchestrator: Synthesize results
     combined = "\n\n".join(f"Subtask: {st}\nResult: {r}" for st, r in zip(subtasks, results))
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"Synthesize these results into a final response:\n\n{combined}")
-    ])
+    ], api_key=API_KEY)
 
     return response.content
 
 
 async def async_orchestrator(task: str) -> str:
-    """Async version with parallel workers."""
     print("\n" + "=" * 60)
     print("Async Orchestrator (Parallel Workers)")
     print("=" * 60)
 
-    # Orchestrator
-    response = await acomplete("claude-sonnet-4-20250514", [
+    response = await acomplete(MODEL, [
         user(f"""Break this task into 2-3 independent subtasks.
 Return as JSON array of strings.
 
 Task: {task}""")
-    ])
+    ], api_key=API_KEY)
 
     try:
         subtasks = json.loads(response.content)
@@ -74,21 +66,17 @@ Task: {task}""")
 
     print(f"Subtasks: {subtasks}")
 
-    # Parallel workers
     tasks = [
-        acomplete("claude-sonnet-4-20250514", [
-            user(f"Complete this task concisely: {st}")
-        ])
+        acomplete(MODEL, [user(f"Complete this task concisely: {st}")], api_key=API_KEY)
         for st in subtasks
     ]
     responses = await asyncio.gather(*tasks)
     results = [r.content for r in responses]
 
-    # Synthesize
     combined = "\n\n".join(f"- {r}" for r in results)
-    response = await acomplete("claude-sonnet-4-20250514", [
+    response = await acomplete(MODEL, [
         user(f"Combine these into a coherent response:\n{combined}")
-    ])
+    ], api_key=API_KEY)
 
     return response.content
 

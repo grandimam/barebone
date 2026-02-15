@@ -1,27 +1,22 @@
-"""
-Routing pattern.
-
-Classify input and route to specialized handlers.
-"""
+import os
 
 from barebone import complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 def route(query: str) -> str:
-    """Classify and route query to appropriate handler."""
-
-    # Step 1: Classify
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Classify this query into exactly one category.
 Reply with just the category name.
 
 Categories: tech_support, billing, general
 
 Query: {query}""")
-    ])
+    ], api_key=API_KEY)
     category = response.content.strip().lower()
 
-    # Step 2: Route to handler
     handlers = {
         "tech_support": handle_tech,
         "billing": handle_billing,
@@ -32,21 +27,21 @@ Query: {query}""")
 
 
 def handle_tech(query: str) -> str:
-    return complete("claude-sonnet-4-20250514", [
+    return complete(MODEL, [
         user(f"You are a technical support expert. Help with: {query}")
-    ], system="Be concise and technical. Provide step-by-step solutions.").content
+    ], api_key=API_KEY, system="Be concise and technical. Provide step-by-step solutions.").content
 
 
 def handle_billing(query: str) -> str:
-    return complete("claude-sonnet-4-20250514", [
+    return complete(MODEL, [
         user(f"You are a billing specialist. Help with: {query}")
-    ], system="Be helpful and clear about pricing and payments.").content
+    ], api_key=API_KEY, system="Be helpful and clear about pricing and payments.").content
 
 
 def handle_general(query: str) -> str:
-    return complete("claude-sonnet-4-20250514", [
+    return complete(MODEL, [
         user(query)
-    ], system="Be helpful and friendly.").content
+    ], api_key=API_KEY, system="Be helpful and friendly.").content
 
 
 if __name__ == "__main__":

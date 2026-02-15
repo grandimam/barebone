@@ -1,43 +1,36 @@
-"""
-Reflection pattern.
-
-LLM critiques and improves its own output.
-"""
+import os
 
 from barebone import complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 def self_reflection(task: str, max_reflections: int = 2) -> str:
-    """Generate output, reflect on it, improve."""
     print("=" * 60)
     print("Self Reflection")
     print("=" * 60)
 
-    # Initial attempt
-    response = complete("claude-sonnet-4-20250514", [
-        user(task)
-    ])
+    response = complete(MODEL, [user(task)], api_key=API_KEY)
     output = response.content
     print(f"Initial:\n{output}\n")
 
     for i in range(max_reflections):
-        # Reflect
-        reflection = complete("claude-sonnet-4-20250514", [
+        reflection = complete(MODEL, [
             user(f"""Reflect on your previous response to: "{task}"
 
 Your response was:
 {output}
 
 What could be improved? Be specific. If it's already excellent, say "NO IMPROVEMENTS NEEDED".""")
-        ]).content
+        ], api_key=API_KEY).content
 
         print(f"Reflection {i + 1}:\n{reflection}\n")
 
         if "NO IMPROVEMENTS NEEDED" in reflection.upper():
             break
 
-        # Improve based on reflection
-        output = complete("claude-sonnet-4-20250514", [
+        output = complete(MODEL, [
             user(f"""Improve your response based on your reflection.
 
 Original task: {task}
@@ -49,7 +42,7 @@ Your reflection:
 {reflection}
 
 Improved response:""")
-        ]).content
+        ], api_key=API_KEY).content
 
         print(f"Improved:\n{output}\n")
 
@@ -57,36 +50,32 @@ Improved response:""")
 
 
 def chain_of_thought_reflection(question: str) -> str:
-    """Reflect on reasoning process, not just output."""
     print("\n" + "=" * 60)
     print("Chain-of-Thought Reflection")
     print("=" * 60)
 
-    # Initial reasoning
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Think through this step by step:
 
 {question}
 
 Show your reasoning, then give your answer.""")
-    ])
+    ], api_key=API_KEY)
     reasoning = response.content
     print(f"Initial reasoning:\n{reasoning}\n")
 
-    # Reflect on reasoning
-    reflection = complete("claude-sonnet-4-20250514", [
+    reflection = complete(MODEL, [
         user(f"""Review your reasoning for any logical errors or gaps:
 
 {reasoning}
 
 List any issues with the reasoning process. If none, say "REASONING VALID".""")
-    ]).content
+    ], api_key=API_KEY).content
 
     print(f"Reflection on reasoning:\n{reflection}\n")
 
     if "REASONING VALID" not in reflection.upper():
-        # Re-reason with corrections
-        response = complete("claude-sonnet-4-20250514", [
+        response = complete(MODEL, [
             user(f"""Redo your reasoning, addressing these issues:
 
 {reflection}
@@ -94,7 +83,7 @@ List any issues with the reasoning process. If none, say "REASONING VALID".""")
 Original question: {question}
 
 Corrected reasoning and answer:""")
-        ])
+        ], api_key=API_KEY)
         reasoning = response.content
         print(f"Corrected reasoning:\n{reasoning}\n")
 
@@ -102,25 +91,21 @@ Corrected reasoning and answer:""")
 
 
 def debate_reflection(topic: str) -> str:
-    """Generate opposing viewpoints, then synthesize."""
     print("\n" + "=" * 60)
     print("Debate Reflection")
     print("=" * 60)
 
-    # Position A
-    position_a = complete("claude-sonnet-4-20250514", [
+    position_a = complete(MODEL, [
         user(f"Argue strongly FOR: {topic}")
-    ]).content
+    ], api_key=API_KEY).content
     print(f"For:\n{position_a}\n")
 
-    # Position B
-    position_b = complete("claude-sonnet-4-20250514", [
+    position_b = complete(MODEL, [
         user(f"Argue strongly AGAINST: {topic}")
-    ]).content
+    ], api_key=API_KEY).content
     print(f"Against:\n{position_b}\n")
 
-    # Synthesize
-    synthesis = complete("claude-sonnet-4-20250514", [
+    synthesis = complete(MODEL, [
         user(f"""Given these two positions, provide a balanced, nuanced view:
 
 FOR: {position_a}
@@ -128,7 +113,7 @@ FOR: {position_a}
 AGAINST: {position_b}
 
 Synthesized view:""")
-    ]).content
+    ], api_key=API_KEY).content
 
     print(f"Synthesis:\n{synthesis}")
     return synthesis

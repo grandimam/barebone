@@ -1,10 +1,11 @@
 import asyncio
-
-from dotenv import load_dotenv
+import os
 
 from barebone import Agent, Hooks, tool
 
-load_dotenv()
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
+
 
 @tool
 def greet_user(name: str) -> str:
@@ -26,7 +27,8 @@ async def basic_example():
     print("=" * 60)
 
     agent = Agent(
-        model="claude-sonnet-4-20250514",
+        MODEL,
+        api_key=API_KEY,
         system="You are a helpful assistant. Be concise.",
         tools=["Read", "Glob", greet_user, calculate],
     )
@@ -37,13 +39,13 @@ async def basic_example():
 
 
 async def streaming_example():
-    """Streaming agent responses."""
     print("\n" + "=" * 60)
     print("Streaming Example")
     print("=" * 60)
 
     agent = Agent(
-        model="claude-sonnet-4-20250514",
+        MODEL,
+        api_key=API_KEY,
         system="You are a helpful assistant.",
     )
 
@@ -55,12 +57,10 @@ async def streaming_example():
 
 
 async def hooks_example():
-    """Using hooks to control tool execution."""
     print("\n" + "=" * 60)
     print("Hooks Example")
     print("=" * 60)
 
-    # Create hooks
     hooks = Hooks()
 
     @hooks.before
@@ -80,7 +80,8 @@ async def hooks_example():
         print(f"  [Hook] Result: {result[:100]}...")
 
     agent = Agent(
-        model="claude-sonnet-4-20250514",
+        MODEL,
+        api_key=API_KEY,
         system="You are a helpful assistant.",
         tools=["Read", "Glob"],
         hooks=hooks,
@@ -91,32 +92,28 @@ async def hooks_example():
 
 
 async def conversation_example():
-    """Multi-turn conversation."""
     print("\n" + "=" * 60)
     print("Conversation Example")
     print("=" * 60)
 
     agent = Agent(
-        model="claude-sonnet-4-20250514",
+        MODEL,
+        api_key=API_KEY,
         system="You are a helpful assistant. Remember our conversation.",
     )
 
-    # First turn
     response = await agent.run("My name is Alice.")
     print(f"Turn 1: {response.content}")
 
-    # Second turn (agent remembers the conversation)
     response = await agent.run("What's my name?")
     print(f"Turn 2: {response.content}")
 
-    # Clear conversation
     agent.clear_messages()
     response = await agent.run("What's my name?")
     print(f"Turn 3 (after clear): {response.content}")
 
 
 async def main():
-    """Run all examples."""
     await basic_example()
     await streaming_example()
     await hooks_example()

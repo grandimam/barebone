@@ -39,3 +39,11 @@ htmlcov/
 # Misc
 .DS_Store
 *.log
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite

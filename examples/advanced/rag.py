@@ -1,13 +1,10 @@
-"""
-RAG (Retrieval-Augmented Generation) pattern.
-
-Retrieve relevant context, augment prompt, generate response.
-"""
+import os
 
 from barebone import complete, user
 
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+MODEL = "claude-sonnet-4-20250514"
 
-# Simulated document store
 DOCUMENTS = [
     {"id": 1, "title": "Python Basics", "content": "Python is a high-level programming language. It uses indentation for code blocks. Variables don't need type declarations."},
     {"id": 2, "title": "Python Functions", "content": "Functions in Python are defined with 'def'. They can have default arguments and return multiple values using tuples."},
@@ -18,7 +15,6 @@ DOCUMENTS = [
 
 
 def simple_search(query: str, top_k: int = 2) -> list[dict]:
-    """Simple keyword search (replace with vector search in production)."""
     query_words = set(query.lower().split())
     scored = []
 
@@ -34,22 +30,18 @@ def simple_search(query: str, top_k: int = 2) -> list[dict]:
 
 
 def basic_rag(question: str) -> str:
-    """Basic RAG: retrieve, augment, generate."""
     print("=" * 60)
     print("Basic RAG")
     print("=" * 60)
 
-    # Retrieve
     docs = simple_search(question)
     print(f"Retrieved {len(docs)} documents:")
     for doc in docs:
         print(f"  - {doc['title']}")
 
-    # Augment
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in docs)
 
-    # Generate
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Answer the question based on the provided context.
 If the context doesn't contain the answer, say so.
 
@@ -57,26 +49,23 @@ Context:
 {context}
 
 Question: {question}""")
-    ])
+    ], api_key=API_KEY)
 
     print(f"\nAnswer: {response.content}")
     return response.content
 
 
 def rag_with_reranking(question: str) -> str:
-    """RAG with LLM-based reranking."""
     print("\n" + "=" * 60)
     print("RAG with Reranking")
     print("=" * 60)
 
-    # Retrieve more candidates
     docs = simple_search(question, top_k=4)
     print(f"Retrieved {len(docs)} candidates")
 
-    # Rerank using LLM
     docs_text = "\n".join(f"{i+1}. {d['title']}: {d['content'][:100]}..." for i, d in enumerate(docs))
 
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Rank these documents by relevance to the question.
 Return the numbers of the top 2 most relevant, comma-separated.
 
@@ -84,7 +73,7 @@ Question: {question}
 
 Documents:
 {docs_text}""")
-    ])
+    ], api_key=API_KEY)
 
     try:
         indices = [int(x.strip()) - 1 for x in response.content.split(",")]
@@ -94,39 +83,35 @@ Documents:
 
     print(f"Reranked top docs: {[d['title'] for d in reranked]}")
 
-    # Generate with reranked context
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in reranked)
 
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-    ])
+    ], api_key=API_KEY)
 
     print(f"\nAnswer: {response.content}")
     return response.content
 
 
 def rag_with_query_expansion(question: str) -> str:
-    """Expand query to improve retrieval."""
     print("\n" + "=" * 60)
     print("RAG with Query Expansion")
     print("=" * 60)
 
-    # Expand query
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Generate 2 alternative phrasings of this question for search:
 
 {question}
 
 Return just the alternatives, one per line.""")
-    ])
+    ], api_key=API_KEY)
     expansions = [question] + response.content.strip().split("\n")
     print(f"Expanded queries: {expansions}")
 
-    # Retrieve for all queries
     all_docs = []
     seen_ids = set()
     for q in expansions:
@@ -137,16 +122,15 @@ Return just the alternatives, one per line.""")
 
     print(f"Retrieved {len(all_docs)} unique documents")
 
-    # Generate
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in all_docs)
 
-    response = complete("claude-sonnet-4-20250514", [
+    response = complete(MODEL, [
         user(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-    ])
+    ], api_key=API_KEY)
 
     print(f"\nAnswer: {response.content}")
     return response.content
