@@ -86,6 +86,7 @@ async def acomplete(
     api_key: str | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
+    timeout: float | None = None,
 ) -> Response:
     router = _get_router(api_key)
 
@@ -97,7 +98,7 @@ async def acomplete(
     if response_model:
         tools_schema = [_model_to_tool_schema(response_model)]
 
-    response = await router.complete(
+    coro = router.complete(
         model=model,
         messages=messages,
         system=system,
@@ -105,6 +106,11 @@ async def acomplete(
         max_tokens=max_tokens,
         temperature=temperature,
     )
+
+    if timeout:
+        response = await asyncio.wait_for(coro, timeout=timeout)
+    else:
+        response = await coro
 
     if response_model and response.tool_calls:
         tc = response.tool_calls[0]
@@ -130,6 +136,7 @@ async def astream(
     api_key: str | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
+    timeout: float | None = None,
 ) -> AsyncIterator[StreamEvent]:
     router = _get_router(api_key)
 
@@ -138,15 +145,27 @@ async def astream(
         tool_defs = [resolve_tool(t) for t in tools]
         tools_schema = tools_to_schema(tool_defs)
 
-    async for event in router.stream(
-        model=model,
-        messages=messages,
-        system=system,
-        tools=tools_schema,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    ):
-        yield event
+    if timeout:
+        async with asyncio.timeout(timeout):
+            async for event in router.stream(
+                model=model,
+                messages=messages,
+                system=system,
+                tools=tools_schema,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            ):
+                yield event
+    else:
+        async for event in router.stream(
+            model=model,
+            messages=messages,
+            system=system,
+            tools=tools_schema,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        ):
+            yield event
 
 
 def stream(
