@@ -18,11 +18,12 @@ _BUILTIN_TOOLS: dict[str, type] = {}
 def _get_builtin_tools() -> dict[str, type]:
     global _BUILTIN_TOOLS
     if not _BUILTIN_TOOLS:
-        from barebone.tools.builtin import Read, Write, Edit, Bash, Glob, Grep
+        from barebone.tools.builtin import AskUserQuestion, Read, Write, Edit, Bash, Glob, Grep
         from barebone.tools.web import WebFetch, WebSearch, HttpRequest
         from barebone.tools.code import Python
 
         _BUILTIN_TOOLS = {
+            "AskUserQuestion": AskUserQuestion,
             "Read": Read,
             "Write": Write,
             "Edit": Edit,

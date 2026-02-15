@@ -20,6 +20,9 @@ from .agent import Done
 from .tools import Tool
 from .tools import Param
 from .tools import tool
+from .tools import AskUserQuestion
+from .tools import Question
+from .tools import QuestionOption
 from .tools import Read
 from .tools import Write
 from .tools import Edit
@@ -57,6 +60,9 @@ __all__ = [
     "Done",
     "Tool",
     "Param",
+    "AskUserQuestion",
+    "Question",
+    "QuestionOption",
     "Read",
     "Write",
     "Edit",

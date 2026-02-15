@@ -44,12 +44,32 @@ class Tool(BaseModel):
     @classmethod
     def get_parameters(cls) -> dict[str, Any]:
         schema = cls.model_json_schema()
+        defs = schema.get("$defs", {})
+
+        def resolve_refs(obj: Any) -> Any:
+            """Recursively resolve $ref references in the schema."""
+            if isinstance(obj, dict):
+                if "$ref" in obj:
+                    ref_path = obj["$ref"]
+                    # Handle "#/$defs/ClassName" format
+                    if ref_path.startswith("#/$defs/"):
+                        ref_name = ref_path.split("/")[-1]
+                        if ref_name in defs:
+                            resolved = defs[ref_name].copy()
+                            # Remove title from resolved refs
+                            resolved.pop("title", None)
+                            return resolve_refs(resolved)
+                    return obj
+                return {k: resolve_refs(v) for k, v in obj.items() if k != "title"}
+            elif isinstance(obj, list):
+                return [resolve_refs(item) for item in obj]
+            return obj
+
         properties = {}
         for name, prop in schema.get("properties", {}).items():
             if name.startswith("_"):
                 continue
-            cleaned = {k: v for k, v in prop.items() if k != "title"}
-            properties[name] = cleaned
+            properties[name] = resolve_refs(prop)
 
         required = [
             r for r in schema.get("required", [])
