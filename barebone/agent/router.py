@@ -3,7 +3,8 @@ from typing import Any
 from barebone.auth.anthropic import AnthropicProvider
 from barebone.auth.openrouter import OpenRouterProvider
 from barebone.auth.base import Provider
-from barebone.common.dataclasses import Message, Response
+from barebone.common.dataclasses import Message
+from barebone.common.dataclasses import Response
 
 
 class Router:
@@ -17,10 +18,7 @@ class Router:
         self._providers: dict[str, Provider] = {}
 
         if anthropic_oauth or anthropic_api_key:
-            self._providers["anthropic"] = AnthropicProvider(
-                oauth_token=anthropic_oauth,
-                api_key=anthropic_api_key,
-            )
+            self._providers["anthropic"] = AnthropicProvider(oauth_token=anthropic_oauth, api_key=anthropic_api_key)
 
         if openrouter:
             self._providers["openrouter"] = OpenRouterProvider(api_key=openrouter)

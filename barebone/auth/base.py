@@ -2,16 +2,15 @@ from abc import ABC
 from abc import abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
+from typing import ClassVar
 
-from barebone.common.dataclasses import Message, Response, StreamEvent
+from barebone.common.dataclasses import Message
+from barebone.common.dataclasses import Response
+from barebone.common.dataclasses import StreamEvent
 
 
 class Provider(ABC):
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        ...
+    name: ClassVar[str | None] = None
 
     @abstractmethod
     async def complete(

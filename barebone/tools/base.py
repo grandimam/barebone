@@ -16,8 +16,8 @@ Param = PydanticField
 
 
 class Tool(BaseModel):
-    _tool_name: ClassVar[str | None] = None
-    _tool_description: ClassVar[str | None] = None
+    _name: ClassVar[str | None] = None
+    _description: ClassVar[str | None] = None
 
     class Config:
         extra = "forbid"
@@ -28,14 +28,14 @@ class Tool(BaseModel):
 
     @classmethod
     def get_name(cls) -> str:
-        if hasattr(cls, "_tool_name") and cls._tool_name:
-            return cls._tool_name
+        if hasattr(cls, "_name") and cls._name:
+            return cls._name
         return cls.__name__
 
     @classmethod
     def get_description(cls) -> str:
-        if hasattr(cls, "_tool_description") and cls._tool_description:
-            return cls._tool_description.strip()
+        if hasattr(cls, "_description") and cls._description:
+            return cls._description.strip()
         if cls.__doc__:
             first_para = cls.__doc__.strip().split("\n\n")[0]
             return " ".join(line.strip() for line in first_para.split("\n"))
@@ -44,38 +44,14 @@ class Tool(BaseModel):
     @classmethod
     def get_parameters(cls) -> dict[str, Any]:
         schema = cls.model_json_schema()
-        defs = schema.get("$defs", {})
-
-        def resolve_refs(obj: Any) -> Any:
-            """Recursively resolve $ref references in the schema."""
-            if isinstance(obj, dict):
-                if "$ref" in obj:
-                    ref_path = obj["$ref"]
-                    # Handle "#/$defs/ClassName" format
-                    if ref_path.startswith("#/$defs/"):
-                        ref_name = ref_path.split("/")[-1]
-                        if ref_name in defs:
-                            resolved = defs[ref_name].copy()
-                            # Remove title from resolved refs
-                            resolved.pop("title", None)
-                            return resolve_refs(resolved)
-                    return obj
-                return {k: resolve_refs(v) for k, v in obj.items() if k != "title"}
-            elif isinstance(obj, list):
-                return [resolve_refs(item) for item in obj]
-            return obj
-
-        properties = {}
-        for name, prop in schema.get("properties", {}).items():
-            if name.startswith("_"):
-                continue
-            properties[name] = resolve_refs(prop)
-
+        properties = {
+            k: v for k, v in schema.get("properties", {}).items()
+            if not k.startswith("_")
+        }
         required = [
             r for r in schema.get("required", [])
             if not r.startswith("_")
         ]
-
         return {
             "type": "object",
             "properties": properties,
