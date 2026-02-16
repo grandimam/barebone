@@ -11,7 +11,11 @@ from barebone.agent.router import Router
 from barebone.tools import Tool
 from barebone.tools.base import resolve_tool
 from barebone.tools.base import tools_to_schema
-from barebone.common.dataclasses import ToolDef, Message, ToolCall, Response, StreamEvent
+from barebone.common.dataclasses import ToolDef
+from barebone.common.dataclasses import Message
+from barebone.common.dataclasses import ToolCall
+from barebone.common.dataclasses import Response
+from barebone.common.dataclasses import StreamEvent
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -41,7 +45,7 @@ def _model_to_tool_schema(model: type[T]) -> dict[str, Any]:
     }
 
 
-async def acomplete(
+async def complete(
     model: str,
     messages: list[Message],
     *,
@@ -51,7 +55,6 @@ async def acomplete(
     response_model: type[T] | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
-    timeout: float | None = None,
 ) -> Response:
     router = _get_router(api_key)
 
@@ -63,7 +66,7 @@ async def acomplete(
     if response_model:
         tools_schema = [_model_to_tool_schema(response_model)]
 
-    coro = router.complete(
+    response = await router.complete(
         model=model,
         messages=messages,
         system=system,
@@ -72,11 +75,6 @@ async def acomplete(
         temperature=temperature,
     )
 
-    if timeout:
-        response = await asyncio.wait_for(coro, timeout=timeout)
-    else:
-        response = await coro
-
     if response_model and response.tool_calls:
         tc = response.tool_calls[0]
         response.parsed = response_model(**tc.arguments)
@@ -84,15 +82,7 @@ async def acomplete(
     return response
 
 
-def complete(
-    model: str,
-    messages: list[Message],
-    **kwargs: Any,
-) -> Response:
-    return asyncio.run(acomplete(model, messages, **kwargs))
-
-
-async def astream(
+async def stream(
     model: str,
     messages: list[Message],
     *,
@@ -101,7 +91,6 @@ async def astream(
     tools: list[type[Tool] | ToolDef] | None = None,
     max_tokens: int = 8192,
     temperature: float | None = None,
-    timeout: float | None = None,
 ) -> AsyncIterator[StreamEvent]:
     router = _get_router(api_key)
 
@@ -110,38 +99,18 @@ async def astream(
         tool_defs = [resolve_tool(t) for t in tools]
         tools_schema = tools_to_schema(tool_defs)
 
-    if timeout:
-        async with asyncio.timeout(timeout):
-            async for event in router.stream(
-                model=model,
-                messages=messages,
-                system=system,
-                tools=tools_schema,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            ):
-                yield event
-    else:
-        async for event in router.stream(
-            model=model,
-            messages=messages,
-            system=system,
-            tools=tools_schema,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        ):
-            yield event
+    async for event in router.stream(
+        model=model,
+        messages=messages,
+        system=system,
+        tools=tools_schema,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    ):
+        yield event
 
 
-def stream(
-    model: str,
-    messages: list[Message],
-    **kwargs: Any,
-):
-    return astream(model, messages, **kwargs)
-
-
-async def aexecute(
+async def execute(
     tool_call: ToolCall,
     tools: list[type[Tool] | ToolDef],
 ) -> str:
@@ -164,35 +133,8 @@ async def aexecute(
         return f"Error: {e}"
 
 
-def execute(tool_call: ToolCall, tools: list[type[Tool] | ToolDef]) -> str:
-    return asyncio.run(aexecute(tool_call, tools))
-
-
-def user(content: str) -> Message:
-    return Message(role="user", content=content)
-
-
-def assistant(content: str) -> Message:
-    return Message(role="assistant", content=content)
-
-
-def tool_result(tool_call: ToolCall, result: str) -> Message:
-    return Message(
-        role="tool_result",
-        content=result,
-        tool_call_id=tool_call.id,
-        name=tool_call.name,
-    )
-
-
 __all__ = [
     "complete",
-    "acomplete",
     "stream",
-    "astream",
     "execute",
-    "aexecute",
-    "user",
-    "assistant",
-    "tool_result",
 ]
