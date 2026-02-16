@@ -3,9 +3,7 @@ from abc import abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
 
-from barebone.agent.types import Message
-from barebone.agent.types import Response
-from barebone.agent.types import StreamEvent
+from barebone.common.dataclasses import Message, Response, StreamEvent
 
 
 class Provider(ABC):

@@ -5,16 +5,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ModelInfo:
-    id: str
-    name: str
-    description: str
-    context_length: int
-    pricing_prompt: float
-    pricing_completion: float
-    
-
-@dataclass
 class OAuthCredentials:
     access_token: str
     refresh_token: str

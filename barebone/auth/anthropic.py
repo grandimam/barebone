@@ -24,15 +24,16 @@ from barebone.auth.constants import REDIRECT_URI
 from barebone.auth.constants import SCOPES
 from barebone.auth.constants import CLAUDE_CREDENTIALS_PATH
 
-from barebone.agent.types import Done
-from barebone.agent.types import Message
-from barebone.agent.types import Response
-from barebone.agent.types import StreamEvent
-from barebone.agent.types import TextDelta
-from barebone.agent.types import ToolCall
-from barebone.agent.types import ToolCallEnd
-from barebone.agent.types import ToolCallStart
-from barebone.agent.types import Usage
+from barebone.common.dataclasses import ToolCall
+from barebone.common.dataclasses import Usage
+from barebone.common.dataclasses import Response
+from barebone.common.dataclasses import ToolCallStart
+from barebone.common.dataclasses import ToolCallEnd
+from barebone.common.dataclasses import Done
+from barebone.common.dataclasses import StreamEvent
+from barebone.common.dataclasses import TextDelta
+from barebone.common.dataclasses import Message
+
 from barebone.auth.base import Provider
 
 

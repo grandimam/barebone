@@ -5,12 +5,9 @@ from typing import Any, AsyncIterator
 
 from barebone.agent.core import _get_router
 from barebone.agent.hooks import Hooks
-from barebone.agent.types import Message, Response, StreamEvent, Done
-from barebone.memory.base import Memory
 from barebone.tools.base import is_tool_class
 from barebone.tools.base import tools_to_schema
-from barebone.tools.types import ToolDef
-
+from barebone.common.dataclasses import ToolDef, Message, Response, Done, StreamEvent
 
 _BUILTIN_TOOLS: dict[str, type] = {}
 
@@ -20,7 +17,6 @@ def _get_builtin_tools() -> dict[str, type]:
     if not _BUILTIN_TOOLS:
         from barebone.tools.builtin import AskUserQuestion, Read, Write, Edit, Bash, Glob, Grep
         from barebone.tools.web import WebFetch, WebSearch, HttpRequest
-        from barebone.tools.code import Python
 
         _BUILTIN_TOOLS = {
             "AskUserQuestion": AskUserQuestion,
@@ -33,7 +29,6 @@ def _get_builtin_tools() -> dict[str, type]:
             "WebFetch": WebFetch,
             "WebSearch": WebSearch,
             "HttpRequest": HttpRequest,
-            "Python": Python,
         }
     return _BUILTIN_TOOLS
 
@@ -47,7 +42,6 @@ class Agent:
         api_key: str,
         tools: list[Any] | None = None,
         system: str | None = None,
-        memory: Memory | None = None,
         hooks: Hooks | None = None,
         max_turns: int = 10,
         max_tokens: int = 8192,
@@ -56,7 +50,6 @@ class Agent:
         self._model = model
         self._system = system
         self._router = _get_router(api_key)
-        self._memory = memory
         self._hooks = hooks
         self._max_turns = max_turns
         self._max_tokens = max_tokens
@@ -106,9 +99,6 @@ class Agent:
 
     async def run(self, prompt: str) -> Response:
         self._messages.append(Message(role="user", content=prompt))
-        if self._memory:
-            self._memory.log("user", prompt)
-
         tools_schema = tools_to_schema(self._tool_defs) if self._tool_defs else None
 
         for _ in range(self._max_turns):
@@ -126,8 +116,6 @@ class Agent:
                     self._messages.append(
                         Message(role="assistant", content=response.content)
                     )
-                    if self._memory:
-                        self._memory.log("assistant", response.content)
                 return response
 
             self._messages.append(
@@ -209,10 +197,6 @@ class Agent:
 
     async def stream(self, prompt: str) -> AsyncIterator[StreamEvent]:
         self._messages.append(Message(role="user", content=prompt))
-
-        if self._memory:
-            self._memory.log("user", prompt)
-
         tools_schema = tools_to_schema(self._tool_defs) if self._tool_defs else None
 
         for _ in range(self._max_turns):
@@ -239,8 +223,6 @@ class Agent:
                     self._messages.append(
                         Message(role="assistant", content=response.content)
                     )
-                    if self._memory:
-                        self._memory.log("assistant", response.content)
                 return
 
             content_parts = []
