@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import anthropic
 import base64
 import httpx
@@ -16,15 +15,15 @@ from typing import Callable
 
 from collections.abc import AsyncIterator
 
-from barebone.auth.dataclasses import OAuthCredentials
-from barebone.auth.constants import CLIENT_ID
-from barebone.auth.constants import AUTHORIZE_URL
-from barebone.auth.constants import TOKEN_URL
-from barebone.auth.constants import REDIRECT_URI
-from barebone.auth.constants import SCOPES
-from barebone.auth.constants import CLAUDE_CREDENTIALS_PATH
+from barebone.common.constants import CLIENT_ID
+from barebone.common.constants import AUTHORIZE_URL
+from barebone.common.constants import TOKEN_URL
+from barebone.common.constants import REDIRECT_URI
+from barebone.common.constants import SCOPES
+from barebone.common.constants import CLAUDE_CREDENTIALS_PATH
 
 from barebone.common.dataclasses import ToolCall
+from barebone.common.dataclasses import OAuthCredentials
 from barebone.common.dataclasses import Usage
 from barebone.common.dataclasses import Response
 from barebone.common.dataclasses import ToolCallStart
@@ -37,46 +36,9 @@ from barebone.common.dataclasses import Message
 from barebone.auth.base import Provider
 
 
-class AnthropicProvider(Provider):
+class AnthropicMixin:
 
-    CLAUDE_CODE_HEADERS = {
-        "accept": "application/json",
-        "anthropic-dangerous-direct-browser-access": "true",
-        "anthropic-beta": "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14",
-        "user-agent": "claude-cli/2.1.2 (external, cli)",
-        "x-app": "cli",
-    }
-
-    CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
-
-    def __init__(self, oauth_token: str | None = None, api_key: str | None = None):
-        self.is_oauth = oauth_token is not None
-
-        if self.is_oauth:
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            self.client = anthropic.AsyncAnthropic(
-                auth_token=oauth_token,
-                default_headers=self.CLAUDE_CODE_HEADERS,
-            )
-        else:
-            self.client = anthropic.AsyncAnthropic(api_key=api_key)
-
-    @property
-    def name(self) -> str:
-        return "anthropic"
-
-    def _build_system(self, system: str | None) -> list[dict[str, str]]:
-        blocks = []
-
-        if self.is_oauth:
-            blocks.append({"type": "text", "text": self.CLAUDE_CODE_IDENTITY})
-
-        if system:
-            blocks.append({"type": "text", "text": system})
-
-        return blocks if blocks else None
-
-    def _convert_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
+    def _messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         result = []
 
         for msg in messages:
@@ -109,7 +71,7 @@ class AnthropicProvider(Provider):
 
         return result
 
-    def _convert_tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
+    def _tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
         if not tools:
             return None
 
@@ -122,7 +84,7 @@ class AnthropicProvider(Provider):
             for tool in tools
         ]
 
-    def _parse_response(self, response: anthropic.types.Message, model: str) -> Response:
+    def _response(self, response: anthropic.types.Message, model: str, name: str) -> Response:
         content = ""
         tool_calls = []
 
@@ -148,62 +110,128 @@ class AnthropicProvider(Provider):
                 total_tokens=response.usage.input_tokens + response.usage.output_tokens,
             ),
             model=model,
-            provider=self.name,
+            provider=name,
+        )
+
+
+class ClaudeCodeProvider(Provider, AnthropicMixin):
+    name = "anthropic"
+
+    CLAUDE_CODE_SYSTEM_PROMPT = "You are Claude Code, Anthropic's official CLI for Claude."
+
+    CLAUDE_CODE_SYSTEM_HEADERS = {
+        "accept": "application/json",
+        "anthropic-dangerous-direct-browser-access": "true",
+        "anthropic-beta": "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14",
+        "user-agent": "claude-cli/2.1.2 (external, cli)",
+        "x-app": "cli",
+    }
+
+    def __init__(self, claude_code_oauth: str | None = None):
+        if not claude_code_oauth:
+            raise Exception("Please specify the claude code oauth token")
+
+        self._client = anthropic.AsyncAnthropic(
+            auth_token=claude_code_oauth,
+            default_headers=self.CLAUDE_CODE_SYSTEM_HEADERS,
         )
 
     async def complete(
-        self,
-        model: str,
-        messages: list[Message],
-        system: str | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
+            self,
+            model: str,
+            messages: list[Message],
+            system: str | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            max_tokens: int = 8192,
+            temperature: float | None = None,
+    ) -> Response:
+        params: dict[str | None] = {
+            'model': model,
+            "messages": self._messages(messages),
+            "max_tokens": max_tokens,
+            "system": {"type": "text", "text": self.CLAUDE_CODE_SYSTEM_PROMPT},
+        }
+
+        if converted_tools := self._tools(tools):
+            params["tools"] = converted_tools
+
+        if temperature:
+            params['temperature'] = temperature
+
+        _msg_response = await self._client.messages.create(**params)
+        return self._response(_msg_response, model, self.name)
+
+    async def stream(
+            self,
+            model: str,
+            messages: list[Message],
+            system: str | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            max_tokens: int = 8192,
+            temperature: float | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        pass
+
+
+class AnthropicProvider(Provider, AnthropicMixin):
+    name = "anthropic"
+
+    def __init__(self, oauth_token: str | None = None, api_key: str | None = None):
+        self.is_oauth = bool(oauth_token)
+
+        if self.is_oauth:
+            self.client = anthropic.AsyncAnthropic(
+                auth_token=oauth_token,
+                default_headers=self.CLAUDE_CODE_HEADERS,
+            )
+        else:
+            self.client = anthropic.AsyncAnthropic(api_key=api_key)
+
+    async def complete(
+            self,
+            model: str,
+            messages: list[Message],
+            system: str | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            max_tokens: int = 8192,
+            temperature: float | None = None,
     ) -> Response:
         params: dict[str, Any] = {
             "model": model,
-            "messages": self._convert_messages(messages),
+            "messages": self._messages(messages),
             "max_tokens": max_tokens,
+            "system": {"type": "text", "text": system},
         }
 
-        system_blocks = self._build_system(system)
-        if system_blocks:
-            params["system"] = system_blocks
-
-        converted_tools = self._convert_tools(tools)
-        if converted_tools:
+        if converted_tools := self._tools(tools):
             params["tools"] = converted_tools
 
-        if temperature is not None:
+        if temperature:
             params["temperature"] = temperature
 
         response = await self.client.messages.create(**params)
-        return self._parse_response(response, model)
+        return self._response(response, model, self.name)
 
     async def stream(
-        self,
-        model: str,
-        messages: list[Message],
-        system: str | None = None,
-        tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
+            self,
+            model: str,
+            messages: list[Message],
+            system: str | None = None,
+            tools: list[dict[str, Any]] | None = None,
+            max_tokens: int = 8192,
+            temperature: float | None = None,
     ) -> AsyncIterator[StreamEvent]:
         params: dict[str, Any] = {
             "model": model,
-            "messages": self._convert_messages(messages),
+            "messages": self._messages(messages),
             "max_tokens": max_tokens,
+            "system": {"type": "text", "text": system}
         }
 
-        system_blocks = self._build_system(system)
-        if system_blocks:
-            params["system"] = system_blocks
-
-        converted_tools = self._convert_tools(tools)
-        if converted_tools:
+        if converted_tools := self._tools(tools):
             params["tools"] = converted_tools
 
-        if temperature is not None:
+        if temperature:
             params["temperature"] = temperature
 
         content = ""
@@ -216,7 +244,6 @@ class AnthropicProvider(Provider):
                 if event.type == "message_start":
                     if hasattr(event, "message") and hasattr(event.message, "usage"):
                         usage.input_tokens = event.message.usage.input_tokens
-
                 elif event.type == "content_block_start":
                     if event.content_block.type == "tool_use":
                         current_tool = {
@@ -228,21 +255,18 @@ class AnthropicProvider(Provider):
                             id=event.content_block.id,
                             name=event.content_block.name,
                         )
-
                 elif event.type == "content_block_delta":
                     if event.delta.type == "text_delta":
                         content += event.delta.text
                         yield TextDelta(text=event.delta.text)
                     elif event.delta.type == "input_json_delta" and current_tool:
                         current_tool["arguments_json"] += event.delta.partial_json
-
                 elif event.type == "content_block_stop":
                     if current_tool:
                         try:
                             arguments = json.loads(current_tool["arguments_json"] or "{}")
                         except json.JSONDecodeError:
                             arguments = {}
-
                         tc = ToolCall(
                             id=current_tool["id"],
                             name=current_tool["name"],
@@ -255,12 +279,10 @@ class AnthropicProvider(Provider):
                             arguments=tc.arguments,
                         )
                         current_tool = None
-
                 elif event.type == "message_delta":
                     if hasattr(event, "usage"):
                         usage.output_tokens = event.usage.output_tokens
                         usage.total_tokens = usage.input_tokens + usage.output_tokens
-
         yield Done(
             response=Response(
                 content=content,
@@ -276,10 +298,10 @@ class AnthropicProvider(Provider):
 class TokenManager:
 
     def __init__(
-        self,
-        credentials: OAuthCredentials | None = None,
-        credentials_path: Any | None = None,
-        on_refresh: Callable[[OAuthCredentials], None] | None = None,
+            self,
+            credentials: OAuthCredentials | None = None,
+            credentials_path: Any | None = None,
+            on_refresh: Callable[[OAuthCredentials], None] | None = None,
     ):
         self._credentials = credentials
         self._credentials_path = credentials_path
@@ -291,14 +313,14 @@ class TokenManager:
     def auto(cls) -> TokenManager:
         if creds := _read_claude_credentials():
             return cls(credentials=creds)
-        
+
         return cls(credentials=None)
 
     @classmethod
     def login(
-        cls,
-        open_browser: bool = True,
-        on_auth_url: Callable[[str], None] | None = None,
+            cls,
+            open_browser: bool = True,
+            on_auth_url: Callable[[str], None] | None = None,
     ) -> TokenManager:
         credentials = asyncio.get_event_loop().run_until_complete(_perform_login(open_browser, on_auth_url))
         manager = cls(credentials=credentials)
@@ -451,8 +473,8 @@ def _generate_pkce() -> tuple[str, str]:
 
 
 async def _perform_login(
-    open_browser: bool = True,
-    on_auth_url: Callable[[str], None] | None = None,
+        open_browser: bool = True,
+        on_auth_url: Callable[[str], None] | None = None,
 ) -> OAuthCredentials:
     verifier, challenge = _generate_pkce()
     params = {
