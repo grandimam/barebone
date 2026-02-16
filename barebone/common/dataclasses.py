@@ -1,14 +1,34 @@
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
+from typing import Callable
+from typing import Union
+
+
+@dataclass
+class ModelInfo:
+    id: str
+    name: str
+    description: str
+    context_length: int
+    pricing_prompt: float
+    pricing_completion: float
+
+
+@dataclass
+class ToolDef:
+    name: str
+    description: str
+    parameters: dict[str, Any]
+    handler: Callable
 
 
 @dataclass
 class Message:
     role: str
     content: Any
-    tool_call_id: str | None = None
-    name: str | None = None
+    tool_call_id: Union[str, None] = None
+    name: Union[str, None] = None
 
 
 @dataclass
@@ -33,6 +53,7 @@ class Response:
     usage: Usage = field(default_factory=Usage)
     model: str = ""
     provider: str = ""
+
 
 @dataclass
 class TextDelta:
@@ -63,18 +84,4 @@ class Done:
     response: Response
 
 
-StreamEvent = TextDelta | ToolCallStart | ToolCallDelta | ToolCallEnd | Done
-
-
-__all__ = [
-    "Message",
-    "ToolCall",
-    "Usage",
-    "Response",
-    "TextDelta",
-    "ToolCallStart",
-    "ToolCallDelta",
-    "ToolCallEnd",
-    "Done",
-    "StreamEvent",
-]
+StreamEvent = Union[TextDelta, ToolCallStart, ToolCallDelta, ToolCallEnd, Done]

@@ -9,7 +9,7 @@ from typing import get_type_hints
 from pydantic import Field
 from pydantic import create_model
 
-from .types import ToolDef
+from barebone.common.dataclasses import ToolDef
 
 
 def tool(

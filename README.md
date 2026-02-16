@@ -186,7 +186,8 @@ while True:
 ### Streaming
 
 ```python
-from barebone import astream, user, TextDelta, Done
+from barebone import astream, user
+from barebone.common.dataclasses import TextDelta, Done
 
 async for event in astream("claude-sonnet-4", [user("Write a poem")], api_key=api_key):
     if isinstance(event, TextDelta):

@@ -9,7 +9,7 @@ from typing import ClassVar
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
 
-from .types import ToolDef
+from barebone.common.dataclasses import ToolDef
 
 
 Param = PydanticField

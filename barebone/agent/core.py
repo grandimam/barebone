@@ -8,14 +8,10 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from barebone.agent.router import Router
-from barebone.agent.types import Message
-from barebone.agent.types import Response
-from barebone.agent.types import StreamEvent
-from barebone.agent.types import ToolCall
 from barebone.tools import Tool
 from barebone.tools.base import resolve_tool
 from barebone.tools.base import tools_to_schema
-from barebone.tools.types import ToolDef
+from barebone.common.dataclasses import ToolDef, Message, ToolCall, Response, StreamEvent
 
 T = TypeVar("T", bound=BaseModel)
 

@@ -3,7 +3,7 @@ from typing import Any
 from barebone.auth.anthropic import AnthropicProvider
 from barebone.auth.openrouter import OpenRouterProvider
 from barebone.auth.base import Provider
-from barebone.agent.types import Message, Response
+from barebone.common.dataclasses import Message, Response
 
 
 class Router:

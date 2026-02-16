@@ -1,22 +1,23 @@
 import json
 from collections.abc import AsyncIterator
 from typing import Any
+from typing import Union
 
 import httpx
 import openai
 
-from barebone.agent.types import Done
-from barebone.agent.types import Message
-from barebone.agent.types import Response
-from barebone.agent.types import StreamEvent
-from barebone.agent.types import TextDelta
-from barebone.agent.types import ToolCall
-from barebone.agent.types import ToolCallDelta
-from barebone.agent.types import ToolCallEnd
-from barebone.agent.types import ToolCallStart
-from barebone.agent.types import Usage
+from barebone.common.dataclasses import ToolCall
+from barebone.common.dataclasses import Usage
+from barebone.common.dataclasses import Response
+from barebone.common.dataclasses import ToolCallStart
+from barebone.common.dataclasses import ToolCallDelta
+from barebone.common.dataclasses import ToolCallEnd
+from barebone.common.dataclasses import Done
+from barebone.common.dataclasses import StreamEvent
+from barebone.common.dataclasses import ModelInfo
+from barebone.common.dataclasses import TextDelta
+from barebone.common.dataclasses import Message
 from barebone.auth.base import Provider
-from barebone.auth.dataclasses import ModelInfo
 
 
 class OpenRouterMixin:
@@ -44,7 +45,7 @@ class OpenRouterMixin:
         return models
 
     def _convert_messages(
-        self, messages: list[Message], system: str | None
+        self, messages: list[Message], system: Union[str, None]
     ) -> list[dict[str, Any]]:
         result = []
 
@@ -84,7 +85,7 @@ class OpenRouterMixin:
 
         return result
 
-    def _convert_tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
+    def _convert_tools(self, tools: Union[list[dict[str, Any]], None]) -> Union[list[dict[str, Any]], None]:
         if not tools:
             return None
 
@@ -157,10 +158,10 @@ class OpenRouterProvider(Provider, OpenRouterMixin):
         self,
         model: str,
         messages: list[Message],
-        system: str | None = None,
-        tools: list[dict[str, Any]] | None = None,
+        system: Union[str, None] = None,
+        tools: Union[list[dict[str, Any]], None] = None,
         max_tokens: int = 8192,
-        temperature: float | None = None,
+        temperature: Union[float, None] = None,
     ) -> Response:
         params: dict[str, Any] = {
             "model": model,
@@ -181,10 +182,10 @@ class OpenRouterProvider(Provider, OpenRouterMixin):
         self,
         model: str,
         messages: list[Message],
-        system: str | None = None,
-        tools: list[dict[str, Any]] | None = None,
+        system: Union[str, None] = None,
+        tools: Union[list[dict[str, Any]], None] = None,
         max_tokens: int = 8192,
-        temperature: float | None = None,
+        temperature: Union[float, None] = None,
     ) -> AsyncIterator[StreamEvent]:
         params: dict[str, Any] = {
             "model": model,
