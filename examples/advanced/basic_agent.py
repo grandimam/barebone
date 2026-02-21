@@ -1,21 +1,29 @@
+"""Basic agent examples demonstrating core functionality."""
+
 import asyncio
 import os
 
+from dotenv import load_dotenv
+
 from barebone import Agent
-from barebone import Hooks
+from barebone import AnthropicProvider
 from barebone import tool
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
 
 @tool
 def greet_user(name: str) -> str:
+    """Greet a user by name."""
     return f"Hello, {name}! Nice to meet you."
 
 
 @tool
 def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression."""
     try:
         result = eval(expression)
         return f"Result: {result}"
@@ -24,83 +32,54 @@ def calculate(expression: str) -> str:
 
 
 async def basic_example():
+    """Basic agent with tools."""
     print("=" * 60)
     print("Basic Agent Example")
     print("=" * 60)
 
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
     agent = Agent(
-        MODEL,
-        api_key=API_KEY,
+        provider=provider,
         system="You are a helpful assistant. Be concise.",
-        tools=["Read", "Glob", greet_user, calculate],
+        tools=[greet_user, calculate],
     )
 
-    response = await agent.run("What files are in the current directory? Just list 3.")
+    response = await agent.run("Greet Alice and then calculate 15 * 7.")
     print(f"\nResponse: {response.content}")
-    print(f"Tokens: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
 
 
 async def streaming_example():
+    """Streaming responses."""
     print("\n" + "=" * 60)
     print("Streaming Example")
     print("=" * 60)
 
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
     agent = Agent(
-        MODEL,
-        api_key=API_KEY,
+        provider=provider,
         system="You are a helpful assistant.",
     )
 
     print("\nStreaming response:")
-    async for event in agent.stream("Write a haiku about coding."):
-        if hasattr(event, "text"):
-            print(event.text, end="", flush=True)
-    print()
-
-
-async def hooks_example():
-    print("\n" + "=" * 60)
-    print("Hooks Example")
-    print("=" * 60)
-
-    hooks = Hooks()
-
-    @hooks.before
-    def log_tool_call(tool_call):
-        print(f"  [Hook] Tool called: {tool_call.name}")
-        print(f"  [Hook] Args: {tool_call.arguments}")
-
-    @hooks.before
-    def deny_dangerous_ops(tool_call):
-        if tool_call.name == "Bash":
-            command = tool_call.arguments.get("command", "")
-            if "rm " in command or "sudo" in command:
-                raise Hooks.Deny("Dangerous command blocked")
-
-    @hooks.after
-    def log_result(tool_call, result):
-        print(f"  [Hook] Result: {result[:100]}...")
-
-    agent = Agent(
-        MODEL,
-        api_key=API_KEY,
-        system="You are a helpful assistant.",
-        tools=["Read", "Glob"],
-        hooks=hooks,
-    )
-
-    response = await agent.run("List files in the current directory.")
-    print(f"\nResponse: {response.content}")
+    async for event in provider.stream(
+        messages=agent.messages + [{"role": "user", "content": "Write a haiku about coding."}],
+        system=agent.system,
+    ):
+        if event.get("type") == "text_delta":
+            print(event.get("text", ""), end="", flush=True)
+        elif event.get("type") == "done":
+            print()
 
 
 async def conversation_example():
+    """Multi-turn conversation with memory."""
     print("\n" + "=" * 60)
     print("Conversation Example")
     print("=" * 60)
 
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
     agent = Agent(
-        MODEL,
-        api_key=API_KEY,
+        provider=provider,
         system="You are a helpful assistant. Remember our conversation.",
     )
 
@@ -110,7 +89,8 @@ async def conversation_example():
     response = await agent.run("What's my name?")
     print(f"Turn 2: {response.content}")
 
-    agent.clear_messages()
+    # Clear messages and ask again
+    agent.messages.clear()
     response = await agent.run("What's my name?")
     print(f"Turn 3 (after clear): {response.content}")
 
@@ -118,7 +98,6 @@ async def conversation_example():
 async def main():
     await basic_example()
     await streaming_example()
-    await hooks_example()
     await conversation_example()
 
 

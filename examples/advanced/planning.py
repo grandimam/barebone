@@ -1,55 +1,52 @@
+"""Planning examples - plan generation and execution patterns."""
+
+import asyncio
 import json
 import os
 
-from barebone import Param
-from barebone import Tool
-from barebone import complete
-from barebone import execute
-from barebone import user
+from dotenv import load_dotenv
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+from barebone import Agent
+from barebone import AnthropicProvider
+from barebone import tool
+
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
 
-class SearchWeb(Tool):
+@tool
+def search_web(query: str) -> str:
     """Search the web for information."""
-
-    query: str = Param(description="Search query")
-
-    def execute(self) -> str:
-        return f"[Search results for '{self.query}': Found 3 relevant articles]"
+    return f"[Search results for '{query}': Found 3 relevant articles]"
 
 
-class WriteFile(Tool):
+@tool
+def write_file(filename: str, content: str) -> str:
     """Write content to a file."""
-
-    filename: str = Param(description="File name")
-    content: str = Param(description="Content to write")
-
-    def execute(self) -> str:
-        return f"[Wrote {len(self.content)} chars to {self.filename}]"
+    return f"[Wrote {len(content)} chars to {filename}]"
 
 
-class ReadFile(Tool):
+@tool
+def read_file(filename: str) -> str:
     """Read a file."""
-
-    filename: str = Param(description="File name")
-
-    def execute(self) -> str:
-        return f"[Content of {self.filename}: Example content here]"
+    return f"[Content of {filename}: Example content here]"
 
 
-def plan_and_execute(task: str, tools: list) -> str:
+async def plan_and_execute(task: str) -> str:
+    """Generate a plan and execute it step by step."""
     print("=" * 60)
     print("Plan and Execute")
     print("=" * 60)
 
-    tool_names = [t.get_name() for t in tools]
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    tools = [search_web, write_file, read_file]
+    tool_names = [t.name for t in tools]
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Create a step-by-step plan for this task.
+    # Generate plan
+    planner = Agent(provider=provider)
+    response = await planner.run(f"""Create a step-by-step plan for this task.
 Available tools: {tool_names}
 
 Task: {task}
@@ -59,9 +56,6 @@ Return as JSON array:
   {{"step": 1, "action": "description", "tool": "tool_name or null"}},
   ...
 ]""")
-        ],
-        api_key=API_KEY,
-    )
 
     try:
         plan = json.loads(response.content)
@@ -72,50 +66,42 @@ Return as JSON array:
     for step in plan:
         print(f"  {step['step']}. {step['action']} (tool: {step.get('tool', 'none')})")
 
+    # Execute plan
     print("\nExecuting Plan:")
+    executor = Agent(provider=provider, tools=tools)
     results = []
 
     for step in plan:
         print(f"\n--- Step {step['step']}: {step['action']} ---")
 
         if step.get("tool"):
-            response = complete(
-                MODEL, [user(f"Execute: {step['action']}")], api_key=API_KEY, tools=tools
-            )
-
-            if response.tool_calls:
-                for tc in response.tool_calls:
-                    result = execute(tc, tools)
-                    print(f"  {tc.name}: {result}")
-                    results.append(result)
-            else:
-                results.append(response.content)
+            response = await executor.run(f"Execute: {step['action']}")
+            results.append(response.content)
+            print(f"  Result: {response.content[:100]}...")
         else:
-            response = complete(
-                MODEL,
-                [
-                    user(
-                        f"Complete this step: {step['action']}\n\nContext from previous steps: {results[-3:] if results else 'None'}"
-                    )
-                ],
-                api_key=API_KEY,
+            context = results[-3:] if results else []
+            response = await executor.run(
+                f"Complete this step: {step['action']}\n\nContext from previous steps: {context}"
             )
             results.append(response.content)
             print(f"  Result: {response.content[:100]}...")
 
-    response = complete(
-        MODEL,
-        [user(f"Summarize what was accomplished:\n\nTask: {task}\n\nResults: {results}")],
-        api_key=API_KEY,
+    # Summarize
+    response = await planner.run(
+        f"Summarize what was accomplished:\n\nTask: {task}\n\nResults: {results}"
     )
 
     return response.content
 
 
-def adaptive_planning(task: str) -> str:
+async def adaptive_planning(task: str) -> str:
+    """Planning with replanning on failure."""
     print("\n" + "=" * 60)
     print("Adaptive Planning (Replan on Failure)")
     print("=" * 60)
+
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
 
     max_replans = 2
     context = []
@@ -123,33 +109,21 @@ def adaptive_planning(task: str) -> str:
     for attempt in range(max_replans + 1):
         context_str = "\n".join(context) if context else "No previous attempts"
 
-        response = complete(
-            MODEL,
-            [
-                user(f"""Task: {task}
+        response = await agent.run(f"""Task: {task}
 
 Previous attempts and issues:
 {context_str}
 
 Create a plan that avoids previous issues. Return 2-3 concrete steps.""")
-            ],
-            api_key=API_KEY,
-        )
         plan = response.content
         print(f"\nPlan (attempt {attempt + 1}):\n{plan}")
 
-        response = complete(
-            MODEL,
-            [
-                user(f"""Simulate executing this plan.
+        response = await agent.run(f"""Simulate executing this plan.
 If any step would fail, explain why.
 If all steps succeed, respond with "SUCCESS" and the result.
 
 Plan:
 {plan}""")
-            ],
-            api_key=API_KEY,
-        )
         result = response.content
 
         if "SUCCESS" in result.upper():
@@ -162,11 +136,14 @@ Plan:
     return "Max replans reached"
 
 
-if __name__ == "__main__":
-    tools = [SearchWeb, WriteFile, ReadFile]
-    result = plan_and_execute(
-        "Research Python async patterns and save a summary to notes.txt", tools
+async def main():
+    result = await plan_and_execute(
+        "Research Python async patterns and save a summary to notes.txt"
     )
     print(f"\nFinal Summary:\n{result}")
 
-    adaptive_planning("Find a way to make coffee without a coffee maker")
+    await adaptive_planning("Find a way to make coffee without a coffee maker")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

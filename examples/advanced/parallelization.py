@@ -1,31 +1,42 @@
+"""Parallelization examples - running multiple LLM calls concurrently."""
+
 import asyncio
 import os
 
-from barebone import acomplete
-from barebone import user
+from dotenv import load_dotenv
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+from barebone import Agent
+from barebone import AnthropicProvider
+
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
 
 async def parallel_calls():
+    """Run multiple independent calls in parallel."""
     print("=" * 60)
     print("Parallel Calls")
     print("=" * 60)
 
     topics = ["Python", "Rust", "Go"]
 
-    tasks = [
-        acomplete(MODEL, [user(f"Describe {topic} in one sentence.")], api_key=API_KEY)
-        for topic in topics
-    ]
-    responses = await asyncio.gather(*tasks)
+    async def describe_topic(topic: str) -> tuple[str, str]:
+        provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+        agent = Agent(provider=provider)
+        response = await agent.run(f"Describe {topic} in one sentence.")
+        return topic, response.content
 
-    for topic, response in zip(topics, responses):
-        print(f"{topic}: {response.content}")
+    tasks = [describe_topic(topic) for topic in topics]
+    results = await asyncio.gather(*tasks)
+
+    for topic, description in results:
+        print(f"{topic}: {description}")
 
 
 async def map_reduce():
+    """Map-reduce pattern: process documents in parallel, then combine."""
     print("\n" + "=" * 60)
     print("Map-Reduce")
     print("=" * 60)
@@ -36,62 +47,64 @@ async def map_reduce():
         "Robots are assisting in surgical procedures.",
     ]
 
-    tasks = [
-        acomplete(
-            MODEL, [user(f"Extract the key point in 5 words or less: {doc}")], api_key=API_KEY
-        )
-        for doc in documents
-    ]
+    async def summarize_doc(doc: str) -> str:
+        provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+        agent = Agent(provider=provider)
+        response = await agent.run(f"Extract the key point in 5 words or less: {doc}")
+        return response.content
+
+    # Map: summarize each document in parallel
+    tasks = [summarize_doc(doc) for doc in documents]
     summaries = await asyncio.gather(*tasks)
-    summaries = [r.content for r in summaries]
 
     print("Summaries:")
     for s in summaries:
         print(f"  - {s}")
 
+    # Reduce: combine summaries
     combined = "\n".join(summaries)
-    response = await acomplete(
-        MODEL, [user(f"Combine these points into one sentence:\n{combined}")], api_key=API_KEY
-    )
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
+    response = await agent.run(f"Combine these points into one sentence:\n{combined}")
     print(f"\nCombined: {response.content}")
 
 
 async def voting():
+    """Voting/Best-of-N pattern: generate multiple candidates, pick the best."""
     print("\n" + "=" * 60)
     print("Voting / Best-of-N")
     print("=" * 60)
 
     question = "What's a creative name for a coffee shop?"
 
-    tasks = [
-        acomplete(
-            MODEL,
-            [user(f"{question} Give just the name, nothing else.")],
-            api_key=API_KEY,
-            temperature=1.0,
-        )
-        for _ in range(3)
-    ]
-    responses = await asyncio.gather(*tasks)
-    candidates = [r.content for r in responses]
+    async def generate_candidate() -> str:
+        provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+        agent = Agent(provider=provider, temperature=1.0)
+        response = await agent.run(f"{question} Give just the name, nothing else.")
+        return response.content
+
+    # Generate multiple candidates in parallel
+    tasks = [generate_candidate() for _ in range(3)]
+    candidates = await asyncio.gather(*tasks)
 
     print("Candidates:")
     for c in candidates:
         print(f"  - {c}")
 
-    response = await acomplete(
-        MODEL,
-        [
-            user(
-                f"Pick the best coffee shop name and explain why in one sentence:\n{chr(10).join(candidates)}"
-            )
-        ],
-        api_key=API_KEY,
+    # Pick the best
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
+    response = await agent.run(
+        f"Pick the best coffee shop name and explain why in one sentence:\n{chr(10).join(candidates)}"
     )
     print(f"\nWinner: {response.content}")
 
 
+async def main():
+    await parallel_calls()
+    await map_reduce()
+    await voting()
+
+
 if __name__ == "__main__":
-    asyncio.run(parallel_calls())
-    asyncio.run(map_reduce())
-    asyncio.run(voting())
+    asyncio.run(main())
