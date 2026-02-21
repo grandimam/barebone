@@ -2,7 +2,9 @@ import asyncio
 import os
 from dataclasses import dataclass
 
-from barebone import acomplete, complete, user
+from barebone import acomplete
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -71,19 +73,34 @@ def debate_collaboration(topic: str) -> str:
     print("=" * 60)
 
     print("\n[Pro Agent]")
-    pro = complete(MODEL, [user(f"Argue in favor of: {topic}")],
-                   api_key=API_KEY, system="You argue FOR positions. Be persuasive but factual.").content
+    pro = complete(
+        MODEL,
+        [user(f"Argue in favor of: {topic}")],
+        api_key=API_KEY,
+        system="You argue FOR positions. Be persuasive but factual.",
+    ).content
     print(f"Pro: {pro[:150]}...")
 
     print("\n[Con Agent]")
-    con = complete(MODEL, [user(f"Argue against: {topic}")],
-                   api_key=API_KEY, system="You argue AGAINST positions. Be persuasive but factual.").content
+    con = complete(
+        MODEL,
+        [user(f"Argue against: {topic}")],
+        api_key=API_KEY,
+        system="You argue AGAINST positions. Be persuasive but factual.",
+    ).content
     print(f"Con: {con[:150]}...")
 
     print("\n[Synthesizer]")
-    synthesis = complete(MODEL, [
-        user(f"Synthesize these opposing views into a balanced conclusion:\n\nPro: {pro}\n\nCon: {con}")
-    ], api_key=API_KEY, system="You synthesize opposing views into balanced, nuanced conclusions.").content
+    synthesis = complete(
+        MODEL,
+        [
+            user(
+                f"Synthesize these opposing views into a balanced conclusion:\n\nPro: {pro}\n\nCon: {con}"
+            )
+        ],
+        api_key=API_KEY,
+        system="You synthesize opposing views into balanced, nuanced conclusions.",
+    ).content
     print(f"Synthesis: {synthesis[:150]}...")
 
     return synthesis
@@ -101,8 +118,12 @@ async def parallel_specialists(question: str) -> str:
     }
 
     async def get_perspective(name: str, system: str) -> tuple[str, str]:
-        response = await acomplete(MODEL, [user(f"Answer from your perspective: {question}")],
-                                   api_key=API_KEY, system=system)
+        response = await acomplete(
+            MODEL,
+            [user(f"Answer from your perspective: {question}")],
+            api_key=API_KEY,
+            system=system,
+        )
         return name, response.content
 
     tasks = [get_perspective(name, system) for name, system in specialists.items()]
@@ -113,9 +134,11 @@ async def parallel_specialists(question: str) -> str:
         print(f"  [{name}]: {content[:80]}...")
 
     combined = "\n\n".join(f"[{name}]: {content}" for name, content in results)
-    final = await acomplete(MODEL, [
-        user(f"Combine these expert perspectives into a comprehensive answer:\n\n{combined}")
-    ], api_key=API_KEY)
+    final = await acomplete(
+        MODEL,
+        [user(f"Combine these expert perspectives into a comprehensive answer:\n\n{combined}")],
+        api_key=API_KEY,
+    )
 
     print(f"\nCombined: {final.content[:200]}...")
     return final.content
@@ -127,19 +150,34 @@ def hierarchical_agents(task: str) -> str:
     print("=" * 60)
 
     print("\n[Manager]")
-    breakdown = complete(MODEL, [user(f"Break this into 2-3 subtasks for your team:\n\n{task}")],
-                         api_key=API_KEY, system="You are a manager. Delegate effectively and review work.").content
+    breakdown = complete(
+        MODEL,
+        [user(f"Break this into 2-3 subtasks for your team:\n\n{task}")],
+        api_key=API_KEY,
+        system="You are a manager. Delegate effectively and review work.",
+    ).content
     print(f"Breakdown:\n{breakdown}")
 
     print("\n[Worker]")
-    work = complete(MODEL, [user(f"Complete these assigned tasks:\n\n{breakdown}")],
-                    api_key=API_KEY, system="You are a diligent worker. Complete tasks thoroughly.").content
+    work = complete(
+        MODEL,
+        [user(f"Complete these assigned tasks:\n\n{breakdown}")],
+        api_key=API_KEY,
+        system="You are a diligent worker. Complete tasks thoroughly.",
+    ).content
     print(f"Work completed: {work[:200]}...")
 
     print("\n[Manager Review]")
-    review = complete(MODEL, [
-        user(f"Review this work and provide final output:\n\nOriginal task: {task}\n\nCompleted work:\n{work}")
-    ], api_key=API_KEY, system="You are a manager. Review work quality and compile final results.").content
+    review = complete(
+        MODEL,
+        [
+            user(
+                f"Review this work and provide final output:\n\nOriginal task: {task}\n\nCompleted work:\n{work}"
+            )
+        ],
+        api_key=API_KEY,
+        system="You are a manager. Review work quality and compile final results.",
+    ).content
     print(f"Final review: {review[:200]}...")
 
     return review

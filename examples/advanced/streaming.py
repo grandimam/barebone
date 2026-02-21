@@ -1,8 +1,11 @@
 import asyncio
 import os
 
-from barebone import astream, user
-from barebone.common.dataclasses import TextDelta, Done
+from barebone.common.dataclasses import Done
+from barebone.common.dataclasses import TextDelta
+
+from barebone import astream
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"

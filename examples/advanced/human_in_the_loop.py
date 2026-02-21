@@ -1,6 +1,11 @@
 import os
 
-from barebone import complete, execute, user, tool_result, Tool, Param
+from barebone import Param
+from barebone import Tool
+from barebone import complete
+from barebone import execute
+from barebone import tool_result
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -8,6 +13,7 @@ MODEL = "claude-sonnet-4-20250514"
 
 class SendEmail(Tool):
     """Send an email (requires approval)."""
+
     to: str = Param(description="Recipient email")
     subject: str = Param(description="Email subject")
     body: str = Param(description="Email body")
@@ -18,6 +24,7 @@ class SendEmail(Tool):
 
 class DeleteFile(Tool):
     """Delete a file (requires approval)."""
+
     path: str = Param(description="File path to delete")
 
     def execute(self) -> str:
@@ -28,10 +35,10 @@ REQUIRES_APPROVAL = {"SendEmail", "DeleteFile"}
 
 
 def get_human_approval(tool_call) -> tuple[bool, str]:
-    print(f"\n{'='*40}")
+    print(f"\n{'=' * 40}")
     print(f"APPROVAL REQUIRED: {tool_call.name}")
     print(f"Arguments: {tool_call.arguments}")
-    print(f"{'='*40}")
+    print(f"{'=' * 40}")
 
     response = input("Approve? (y/n/modify): ").strip().lower()
 
@@ -93,8 +100,10 @@ def human_feedback_loop(task: str) -> str:
         if feedback.lower() == "done":
             break
 
-        output = complete(MODEL, [
-            user(f"""Revise based on feedback.
+        output = complete(
+            MODEL,
+            [
+                user(f"""Revise based on feedback.
 
 Original task: {task}
 
@@ -104,7 +113,9 @@ Current output:
 Feedback: {feedback}
 
 Revised:""")
-        ], api_key=API_KEY).content
+            ],
+            api_key=API_KEY,
+        ).content
 
     return output
 
@@ -114,25 +125,33 @@ def human_choice_branch(query: str) -> str:
     print("Human Choice Branch")
     print("=" * 60)
 
-    response = complete(MODEL, [
-        user(f"""For this request, provide 3 different approaches.
+    response = complete(
+        MODEL,
+        [
+            user(f"""For this request, provide 3 different approaches.
 Number them 1, 2, 3.
 
 Request: {query}""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     print(f"Options:\n{response.content}\n")
 
     choice = input("Choose option (1/2/3): ").strip()
 
-    response = complete(MODEL, [
-        user(f"""Execute option {choice} for: {query}
+    response = complete(
+        MODEL,
+        [
+            user(f"""Execute option {choice} for: {query}
 
 The options were:
 {response.content}
 
 Now implement option {choice} in detail:""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     return response.content
 

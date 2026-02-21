@@ -1,16 +1,37 @@
 import os
 
-from barebone import complete, user
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
 
 DOCUMENTS = [
-    {"id": 1, "title": "Python Basics", "content": "Python is a high-level programming language. It uses indentation for code blocks. Variables don't need type declarations."},
-    {"id": 2, "title": "Python Functions", "content": "Functions in Python are defined with 'def'. They can have default arguments and return multiple values using tuples."},
-    {"id": 3, "title": "Python Classes", "content": "Classes in Python use 'class' keyword. The __init__ method is the constructor. Self refers to the instance."},
-    {"id": 4, "title": "Python Async", "content": "Async programming uses async/await syntax. asyncio is the standard library for async IO. Coroutines are defined with 'async def'."},
-    {"id": 5, "title": "Error Handling", "content": "Python uses try/except for error handling. Finally blocks always execute. You can raise custom exceptions."},
+    {
+        "id": 1,
+        "title": "Python Basics",
+        "content": "Python is a high-level programming language. It uses indentation for code blocks. Variables don't need type declarations.",
+    },
+    {
+        "id": 2,
+        "title": "Python Functions",
+        "content": "Functions in Python are defined with 'def'. They can have default arguments and return multiple values using tuples.",
+    },
+    {
+        "id": 3,
+        "title": "Python Classes",
+        "content": "Classes in Python use 'class' keyword. The __init__ method is the constructor. Self refers to the instance.",
+    },
+    {
+        "id": 4,
+        "title": "Python Async",
+        "content": "Async programming uses async/await syntax. asyncio is the standard library for async IO. Coroutines are defined with 'async def'.",
+    },
+    {
+        "id": 5,
+        "title": "Error Handling",
+        "content": "Python uses try/except for error handling. Finally blocks always execute. You can raise custom exceptions.",
+    },
 ]
 
 
@@ -41,15 +62,19 @@ def basic_rag(question: str) -> str:
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in docs)
 
-    response = complete(MODEL, [
-        user(f"""Answer the question based on the provided context.
+    response = complete(
+        MODEL,
+        [
+            user(f"""Answer the question based on the provided context.
 If the context doesn't contain the answer, say so.
 
 Context:
 {context}
 
 Question: {question}""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     print(f"\nAnswer: {response.content}")
     return response.content
@@ -63,17 +88,23 @@ def rag_with_reranking(question: str) -> str:
     docs = simple_search(question, top_k=4)
     print(f"Retrieved {len(docs)} candidates")
 
-    docs_text = "\n".join(f"{i+1}. {d['title']}: {d['content'][:100]}..." for i, d in enumerate(docs))
+    docs_text = "\n".join(
+        f"{i + 1}. {d['title']}: {d['content'][:100]}..." for i, d in enumerate(docs)
+    )
 
-    response = complete(MODEL, [
-        user(f"""Rank these documents by relevance to the question.
+    response = complete(
+        MODEL,
+        [
+            user(f"""Rank these documents by relevance to the question.
 Return the numbers of the top 2 most relevant, comma-separated.
 
 Question: {question}
 
 Documents:
 {docs_text}""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     try:
         indices = [int(x.strip()) - 1 for x in response.content.split(",")]
@@ -85,13 +116,17 @@ Documents:
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in reranked)
 
-    response = complete(MODEL, [
-        user(f"""Answer based on context:
+    response = complete(
+        MODEL,
+        [
+            user(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     print(f"\nAnswer: {response.content}")
     return response.content
@@ -102,13 +137,17 @@ def rag_with_query_expansion(question: str) -> str:
     print("RAG with Query Expansion")
     print("=" * 60)
 
-    response = complete(MODEL, [
-        user(f"""Generate 2 alternative phrasings of this question for search:
+    response = complete(
+        MODEL,
+        [
+            user(f"""Generate 2 alternative phrasings of this question for search:
 
 {question}
 
 Return just the alternatives, one per line.""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
     expansions = [question] + response.content.strip().split("\n")
     print(f"Expanded queries: {expansions}")
 
@@ -124,13 +163,17 @@ Return just the alternatives, one per line.""")
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in all_docs)
 
-    response = complete(MODEL, [
-        user(f"""Answer based on context:
+    response = complete(
+        MODEL,
+        [
+            user(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     print(f"\nAnswer: {response.content}")
     return response.content

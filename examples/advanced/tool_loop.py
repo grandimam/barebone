@@ -1,6 +1,12 @@
 import os
 
-from barebone import complete, execute, user, assistant, tool_result, Tool, Param
+from barebone import Param
+from barebone import Tool
+from barebone import assistant
+from barebone import complete
+from barebone import execute
+from barebone import tool_result
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -8,6 +14,7 @@ MODEL = "claude-sonnet-4-20250514"
 
 class Calculator(Tool):
     """Perform arithmetic calculations."""
+
     expression: str = Param(description="Math expression to evaluate")
 
     def execute(self) -> str:
@@ -20,6 +27,7 @@ class Calculator(Tool):
 
 class GetFact(Tool):
     """Get a fact about a number."""
+
     number: int = Param(description="The number to get a fact about")
 
     def execute(self) -> str:
@@ -67,8 +75,7 @@ def multi_tool_example():
     tools = [Calculator, GetFact]
 
     result = tool_loop(
-        "What is 6 * 7, and can you tell me an interesting fact about that number?",
-        tools
+        "What is 6 * 7, and can you tell me an interesting fact about that number?", tools
     )
     print(f"\nResult: {result}")
 
