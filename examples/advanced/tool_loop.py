@@ -1,86 +1,93 @@
+"""Tool loop example demonstrating agentic tool execution."""
+
+import asyncio
 import os
 
-from barebone import Param
-from barebone import Tool
-from barebone import assistant
-from barebone import complete
-from barebone import execute
-from barebone import tool_result
-from barebone import user
+from dotenv import load_dotenv
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+from barebone import Agent
+from barebone import AnthropicProvider
+from barebone import tool
+
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
 
-class Calculator(Tool):
+@tool
+def calculator(expression: str) -> str:
     """Perform arithmetic calculations."""
-
-    expression: str = Param(description="Math expression to evaluate")
-
-    def execute(self) -> str:
-        try:
-            result = eval(self.expression)
-            return str(result)
-        except Exception as e:
-            return f"Error: {e}"
+    try:
+        result = eval(expression)
+        return str(result)
+    except Exception as e:
+        return f"Error: {e}"
 
 
-class GetFact(Tool):
+@tool
+def get_fact(number: int) -> str:
     """Get a fact about a number."""
-
-    number: int = Param(description="The number to get a fact about")
-
-    def execute(self) -> str:
-        facts = {
-            42: "The answer to life, the universe, and everything",
-            7: "Considered lucky in many cultures",
-            13: "Considered unlucky in Western culture",
-        }
-        return facts.get(self.number, f"{self.number} is just a number")
+    facts = {
+        42: "The answer to life, the universe, and everything",
+        7: "Considered lucky in many cultures",
+        13: "Considered unlucky in Western culture",
+    }
+    return facts.get(number, f"{number} is just a number")
 
 
-def tool_loop(query: str, tools: list, max_turns: int = 5) -> str:
+async def tool_loop_example():
+    """Demonstrate the agent's tool loop."""
     print("=" * 60)
-    print("Tool Loop")
+    print("Tool Loop Example")
     print("=" * 60)
 
-    messages = [user(query)]
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(
+        provider=provider,
+        tools=[calculator, get_fact],
+        system="You are a helpful math assistant. Use tools to help with calculations.",
+    )
 
-    for turn in range(max_turns):
-        print(f"\n--- Turn {turn + 1} ---")
+    # The agent will automatically loop: call tool -> get result -> continue
+    response = await agent.run("What is (15 + 27) * 3?")
+    print(f"\nResult: {response.content}")
 
-        response = complete(MODEL, messages, tools=tools, api_key=API_KEY)
-
-        if not response.tool_calls:
-            print(f"Final response: {response.content}")
-            return response.content
-
-        print(f"Tool calls: {[tc.name for tc in response.tool_calls]}")
-
-        messages.append(assistant(response.content or ""))
-
-        for tc in response.tool_calls:
-            result = execute(tc, tools)
-            print(f"  {tc.name}({tc.arguments}) -> {result}")
-            messages.append(tool_result(tc, result))
-
-    return "Max turns reached"
+    # Show the conversation history
+    print(f"\nMessage history ({len(agent.messages)} messages):")
+    for i, msg in enumerate(agent.messages):
+        if msg.tool_calls:
+            print(f"  {i+1}. {msg.role}: [tool calls: {[tc.name for tc in msg.tool_calls]}]")
+        elif msg.tool_results:
+            print(f"  {i+1}. {msg.role}: [tool results]")
+        else:
+            content = msg.content[:50] + "..." if msg.content and len(msg.content) > 50 else msg.content
+            print(f"  {i+1}. {msg.role}: {content}")
 
 
-def multi_tool_example():
+async def multi_tool_example():
+    """Multiple tools working together."""
     print("\n" + "=" * 60)
     print("Multi-Tool Example")
     print("=" * 60)
 
-    tools = [Calculator, GetFact]
-
-    result = tool_loop(
-        "What is 6 * 7, and can you tell me an interesting fact about that number?", tools
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(
+        provider=provider,
+        tools=[calculator, get_fact],
+        system="You are a helpful assistant with math and trivia knowledge.",
     )
-    print(f"\nResult: {result}")
+
+    response = await agent.run(
+        "What is 6 * 7, and can you tell me an interesting fact about that number?"
+    )
+    print(f"\nResult: {response.content}")
+
+
+async def main():
+    await tool_loop_example()
+    await multi_tool_example()
 
 
 if __name__ == "__main__":
-    tools = [Calculator]
-    tool_loop("What is (15 + 27) * 3?", tools)
-    multi_tool_example()
+    asyncio.run(main())

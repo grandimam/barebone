@@ -1,12 +1,19 @@
+"""Structured output examples using JSON responses."""
+
+import asyncio
+import json
 import os
 
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic import Field
 
-from barebone import complete
-from barebone import user
+from barebone import Agent
+from barebone import AnthropicProvider
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
 
@@ -33,7 +40,8 @@ class Decision(BaseModel):
     confidence: float
 
 
-def sentiment_analysis():
+async def sentiment_analysis():
+    """Structured sentiment analysis."""
     print("=" * 60)
     print("Sentiment Analysis")
     print("=" * 60)
@@ -44,20 +52,32 @@ def sentiment_analysis():
         "Terrible experience. Would not recommend.",
     ]
 
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+
     for text in texts:
-        response = complete(
-            MODEL,
-            [user(f"Analyze the sentiment: {text}")],
-            api_key=API_KEY,
-            response_model=Sentiment,
+        agent = Agent(
+            provider=provider,
+            system=f"""Analyze the sentiment and return a JSON object with:
+- sentiment: "positive", "negative", or "neutral"
+- confidence: number from 0 to 1
+- reasoning: brief explanation
+
+Return only valid JSON, no other text.""",
         )
-        result = response.parsed
-        print(f"\nText: {text}")
-        print(f"  Sentiment: {result.sentiment} ({result.confidence:.0%})")
-        print(f"  Reasoning: {result.reasoning}")
+        response = await agent.run(f"Analyze: {text}")
+
+        try:
+            result = Sentiment(**json.loads(response.content))
+            print(f"\nText: {text}")
+            print(f"  Sentiment: {result.sentiment} ({result.confidence:.0%})")
+            print(f"  Reasoning: {result.reasoning}")
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"\nText: {text}")
+            print(f"  Raw response: {response.content}")
 
 
-def entity_extraction():
+async def entity_extraction():
+    """Extract named entities from text."""
     print("\n" + "=" * 60)
     print("Entity Extraction")
     print("=" * 60)
@@ -67,90 +87,67 @@ def entity_extraction():
     Cupertino headquarters. The deal was also celebrated in New York.
     """
 
-    response = complete(
-        MODEL,
-        [user(f"Extract all entities from this text:\n\n{text}")],
-        api_key=API_KEY,
-        response_model=Extraction,
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(
+        provider=provider,
+        system="""Extract entities and return a JSON object with:
+- entities: array of {name, type} objects
+- summary: brief summary of the text
+
+Return only valid JSON, no other text.""",
     )
-    result = response.parsed
+    response = await agent.run(f"Extract entities from:\n\n{text}")
 
-    print(f"Summary: {result.summary}")
-    print("\nEntities:")
-    for entity in result.entities:
-        print(f"  - {entity.name} ({entity.type})")
+    try:
+        result = Extraction(**json.loads(response.content))
+        print(f"Summary: {result.summary}")
+        print("\nEntities:")
+        for entity in result.entities:
+            print(f"  - {entity.name} ({entity.type})")
+    except (json.JSONDecodeError, ValueError):
+        print(f"Raw response: {response.content}")
 
 
-def structured_decision():
+async def structured_decision():
+    """Get a structured decision with pros/cons."""
     print("\n" + "=" * 60)
     print("Structured Decision")
     print("=" * 60)
 
     question = "Should a startup use Python or Rust for their backend?"
 
-    response = complete(MODEL, [user(question)], api_key=API_KEY, response_model=Decision)
-    result = response.parsed
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(
+        provider=provider,
+        system="""Provide a decision and return a JSON object with:
+- choice: your recommendation
+- pros: array of advantages
+- cons: array of disadvantages
+- confidence: number from 0 to 1
 
-    print(f"Question: {question}")
-    print(f"\nChoice: {result.choice} (confidence: {result.confidence:.0%})")
-    print("\nPros:")
-    for pro in result.pros:
-        print(f"  + {pro}")
-    print("\nCons:")
-    for con in result.cons:
-        print(f"  - {con}")
-
-
-def chained_structured():
-    print("\n" + "=" * 60)
-    print("Chained Structured Output")
-    print("=" * 60)
-
-    class Step(BaseModel):
-        step_number: int
-        action: str
-        expected_outcome: str
-
-    class Plan(BaseModel):
-        goal: str
-        steps: list[Step]
-
-    class Evaluation(BaseModel):
-        feasibility: float = Field(description="0-1 score")
-        risks: list[str]
-        recommendation: str
-
-    plan_response = complete(
-        MODEL,
-        [user("Create a plan to learn machine learning in 3 months")],
-        api_key=API_KEY,
-        response_model=Plan,
+Return only valid JSON, no other text.""",
     )
-    plan = plan_response.parsed
+    response = await agent.run(question)
 
-    print(f"Goal: {plan.goal}")
-    print("\nSteps:")
-    for step in plan.steps:
-        print(f"  {step.step_number}. {step.action}")
-        print(f"     Expected: {step.expected_outcome}")
+    try:
+        result = Decision(**json.loads(response.content))
+        print(f"Question: {question}")
+        print(f"\nChoice: {result.choice} (confidence: {result.confidence:.0%})")
+        print("\nPros:")
+        for pro in result.pros:
+            print(f"  + {pro}")
+        print("\nCons:")
+        for con in result.cons:
+            print(f"  - {con}")
+    except (json.JSONDecodeError, ValueError):
+        print(f"Raw response: {response.content}")
 
-    eval_response = complete(
-        MODEL,
-        [user(f"Evaluate this plan:\n\n{plan.model_dump_json()}")],
-        api_key=API_KEY,
-        response_model=Evaluation,
-    )
-    evaluation = eval_response.parsed
 
-    print(f"\nFeasibility: {evaluation.feasibility:.0%}")
-    print(f"Recommendation: {evaluation.recommendation}")
-    print("Risks:")
-    for risk in evaluation.risks:
-        print(f"  - {risk}")
+async def main():
+    await sentiment_analysis()
+    await entity_extraction()
+    await structured_decision()
 
 
 if __name__ == "__main__":
-    sentiment_analysis()
-    entity_extraction()
-    structured_decision()
-    chained_structured()
+    asyncio.run(main())

@@ -1,11 +1,19 @@
+"""RAG (Retrieval-Augmented Generation) examples."""
+
+import asyncio
 import os
 
-from barebone import complete
-from barebone import user
+from dotenv import load_dotenv
 
-API_KEY = os.environ["ANTHROPIC_API_KEY"]
+from barebone import Agent
+from barebone import AnthropicProvider
+
+load_dotenv()
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 MODEL = "claude-sonnet-4-20250514"
 
+# Sample document store
 DOCUMENTS = [
     {
         "id": 1,
@@ -36,6 +44,7 @@ DOCUMENTS = [
 
 
 def simple_search(query: str, top_k: int = 2) -> list[dict]:
+    """Simple keyword-based document search."""
     query_words = set(query.lower().split())
     scored = []
 
@@ -50,7 +59,8 @@ def simple_search(query: str, top_k: int = 2) -> list[dict]:
     return [doc for _, doc in scored[:top_k]]
 
 
-def basic_rag(question: str) -> str:
+async def basic_rag(question: str) -> str:
+    """Basic RAG: retrieve relevant docs, then answer with context."""
     print("=" * 60)
     print("Basic RAG")
     print("=" * 60)
@@ -62,25 +72,22 @@ def basic_rag(question: str) -> str:
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in docs)
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Answer the question based on the provided context.
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
+    response = await agent.run(f"""Answer the question based on the provided context.
 If the context doesn't contain the answer, say so.
 
 Context:
 {context}
 
 Question: {question}""")
-        ],
-        api_key=API_KEY,
-    )
 
     print(f"\nAnswer: {response.content}")
     return response.content
 
 
-def rag_with_reranking(question: str) -> str:
+async def rag_with_reranking(question: str) -> str:
+    """RAG with LLM-based reranking of retrieved documents."""
     print("\n" + "=" * 60)
     print("RAG with Reranking")
     print("=" * 60)
@@ -92,19 +99,17 @@ def rag_with_reranking(question: str) -> str:
         f"{i + 1}. {d['title']}: {d['content'][:100]}..." for i, d in enumerate(docs)
     )
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Rank these documents by relevance to the question.
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
+
+    # Rerank with LLM
+    response = await agent.run(f"""Rank these documents by relevance to the question.
 Return the numbers of the top 2 most relevant, comma-separated.
 
 Question: {question}
 
 Documents:
 {docs_text}""")
-        ],
-        api_key=API_KEY,
-    )
 
     try:
         indices = [int(x.strip()) - 1 for x in response.content.split(",")]
@@ -116,41 +121,35 @@ Documents:
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in reranked)
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Answer based on context:
+    response = await agent.run(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-        ],
-        api_key=API_KEY,
-    )
 
     print(f"\nAnswer: {response.content}")
     return response.content
 
 
-def rag_with_query_expansion(question: str) -> str:
+async def rag_with_query_expansion(question: str) -> str:
+    """RAG with query expansion for better retrieval."""
     print("\n" + "=" * 60)
     print("RAG with Query Expansion")
     print("=" * 60)
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Generate 2 alternative phrasings of this question for search:
+    provider = AnthropicProvider(api_key=API_KEY, model=MODEL)
+    agent = Agent(provider=provider)
+
+    # Expand query
+    response = await agent.run(f"""Generate 2 alternative phrasings of this question for search:
 
 {question}
 
 Return just the alternatives, one per line.""")
-        ],
-        api_key=API_KEY,
-    )
     expansions = [question] + response.content.strip().split("\n")
     print(f"Expanded queries: {expansions}")
 
+    # Retrieve with all queries
     all_docs = []
     seen_ids = set()
     for q in expansions:
@@ -163,23 +162,21 @@ Return just the alternatives, one per line.""")
 
     context = "\n\n".join(f"## {d['title']}\n{d['content']}" for d in all_docs)
 
-    response = complete(
-        MODEL,
-        [
-            user(f"""Answer based on context:
+    response = await agent.run(f"""Answer based on context:
 
 {context}
 
 Question: {question}""")
-        ],
-        api_key=API_KEY,
-    )
 
     print(f"\nAnswer: {response.content}")
     return response.content
 
 
+async def main():
+    await basic_rag("How do I define a function in Python?")
+    await rag_with_reranking("What is async programming?")
+    await rag_with_query_expansion("How do I handle errors?")
+
+
 if __name__ == "__main__":
-    basic_rag("How do I define a function in Python?")
-    rag_with_reranking("What is async programming?")
-    rag_with_query_expansion("How do I handle errors?")
+    asyncio.run(main())
