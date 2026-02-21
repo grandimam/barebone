@@ -25,6 +25,12 @@ def _get_router(api_key: str) -> Router:
         return Router(anthropic_oauth=api_key)
     if api_key.startswith("sk-or-"):
         return Router(openrouter=api_key)
+    if api_key.startswith("ey") and "." in api_key:
+        from barebone.auth.codex import CodexCredentials
+        creds = CodexCredentials(access_token=api_key, refresh_token="")
+        return Router(codex_credentials=creds)
+    if api_key == "codex":
+        return Router(codex=True)
     return Router(anthropic_api_key=api_key)
 
 
