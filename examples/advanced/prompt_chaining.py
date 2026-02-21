@@ -1,6 +1,7 @@
 import os
 
-from barebone import complete, user
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -21,15 +22,21 @@ def basic_chaining():
     print("Basic Prompt Chaining")
     print("=" * 60)
 
-    response = complete(MODEL, [user("Create a 3-point outline for an article about AI safety")], api_key=API_KEY)
+    response = complete(
+        MODEL, [user("Create a 3-point outline for an article about AI safety")], api_key=API_KEY
+    )
     outline = response.content
     print(f"Outline:\n{outline}\n")
 
-    response = complete(MODEL, [user(f"Expand this outline into a short article:\n\n{outline}")], api_key=API_KEY)
+    response = complete(
+        MODEL, [user(f"Expand this outline into a short article:\n\n{outline}")], api_key=API_KEY
+    )
     article = response.content
     print(f"Article:\n{article}\n")
 
-    response = complete(MODEL, [user(f"Write a compelling title for this article:\n\n{article}")], api_key=API_KEY)
+    response = complete(
+        MODEL, [user(f"Write a compelling title for this article:\n\n{article}")], api_key=API_KEY
+    )
     print(f"Title: {response.content}")
 
 

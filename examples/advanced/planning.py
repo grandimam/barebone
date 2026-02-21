@@ -1,7 +1,11 @@
 import json
 import os
 
-from barebone import complete, user, Tool, Param, execute
+from barebone import Param
+from barebone import Tool
+from barebone import complete
+from barebone import execute
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -9,6 +13,7 @@ MODEL = "claude-sonnet-4-20250514"
 
 class SearchWeb(Tool):
     """Search the web for information."""
+
     query: str = Param(description="Search query")
 
     def execute(self) -> str:
@@ -17,6 +22,7 @@ class SearchWeb(Tool):
 
 class WriteFile(Tool):
     """Write content to a file."""
+
     filename: str = Param(description="File name")
     content: str = Param(description="Content to write")
 
@@ -26,6 +32,7 @@ class WriteFile(Tool):
 
 class ReadFile(Tool):
     """Read a file."""
+
     filename: str = Param(description="File name")
 
     def execute(self) -> str:
@@ -39,8 +46,10 @@ def plan_and_execute(task: str, tools: list) -> str:
 
     tool_names = [t.get_name() for t in tools]
 
-    response = complete(MODEL, [
-        user(f"""Create a step-by-step plan for this task.
+    response = complete(
+        MODEL,
+        [
+            user(f"""Create a step-by-step plan for this task.
 Available tools: {tool_names}
 
 Task: {task}
@@ -50,7 +59,9 @@ Return as JSON array:
   {{"step": 1, "action": "description", "tool": "tool_name or null"}},
   ...
 ]""")
-    ], api_key=API_KEY)
+        ],
+        api_key=API_KEY,
+    )
 
     try:
         plan = json.loads(response.content)
@@ -68,9 +79,9 @@ Return as JSON array:
         print(f"\n--- Step {step['step']}: {step['action']} ---")
 
         if step.get("tool"):
-            response = complete(MODEL, [
-                user(f"Execute: {step['action']}")
-            ], api_key=API_KEY, tools=tools)
+            response = complete(
+                MODEL, [user(f"Execute: {step['action']}")], api_key=API_KEY, tools=tools
+            )
 
             if response.tool_calls:
                 for tc in response.tool_calls:
@@ -80,15 +91,23 @@ Return as JSON array:
             else:
                 results.append(response.content)
         else:
-            response = complete(MODEL, [
-                user(f"Complete this step: {step['action']}\n\nContext from previous steps: {results[-3:] if results else 'None'}")
-            ], api_key=API_KEY)
+            response = complete(
+                MODEL,
+                [
+                    user(
+                        f"Complete this step: {step['action']}\n\nContext from previous steps: {results[-3:] if results else 'None'}"
+                    )
+                ],
+                api_key=API_KEY,
+            )
             results.append(response.content)
             print(f"  Result: {response.content[:100]}...")
 
-    response = complete(MODEL, [
-        user(f"Summarize what was accomplished:\n\nTask: {task}\n\nResults: {results}")
-    ], api_key=API_KEY)
+    response = complete(
+        MODEL,
+        [user(f"Summarize what was accomplished:\n\nTask: {task}\n\nResults: {results}")],
+        api_key=API_KEY,
+    )
 
     return response.content
 
@@ -104,25 +123,33 @@ def adaptive_planning(task: str) -> str:
     for attempt in range(max_replans + 1):
         context_str = "\n".join(context) if context else "No previous attempts"
 
-        response = complete(MODEL, [
-            user(f"""Task: {task}
+        response = complete(
+            MODEL,
+            [
+                user(f"""Task: {task}
 
 Previous attempts and issues:
 {context_str}
 
 Create a plan that avoids previous issues. Return 2-3 concrete steps.""")
-        ], api_key=API_KEY)
+            ],
+            api_key=API_KEY,
+        )
         plan = response.content
         print(f"\nPlan (attempt {attempt + 1}):\n{plan}")
 
-        response = complete(MODEL, [
-            user(f"""Simulate executing this plan.
+        response = complete(
+            MODEL,
+            [
+                user(f"""Simulate executing this plan.
 If any step would fail, explain why.
 If all steps succeed, respond with "SUCCESS" and the result.
 
 Plan:
 {plan}""")
-        ], api_key=API_KEY)
+            ],
+            api_key=API_KEY,
+        )
         result = response.content
 
         if "SUCCESS" in result.upper():
@@ -137,7 +164,9 @@ Plan:
 
 if __name__ == "__main__":
     tools = [SearchWeb, WriteFile, ReadFile]
-    result = plan_and_execute("Research Python async patterns and save a summary to notes.txt", tools)
+    result = plan_and_execute(
+        "Research Python async patterns and save a summary to notes.txt", tools
+    )
     print(f"\nFinal Summary:\n{result}")
 
     adaptive_planning("Find a way to make coffee without a coffee maker")

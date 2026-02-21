@@ -1,8 +1,9 @@
 import os
 import time
-from typing import Callable
+from collections.abc import Callable
 
-from barebone import complete, user
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -16,7 +17,7 @@ def with_retry(fn: Callable, max_retries: int = 3, backoff: float = 1.0) -> any:
             return fn()
         except Exception as e:
             last_error = e
-            wait = backoff * (2 ** attempt)
+            wait = backoff * (2**attempt)
             print(f"Attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
             time.sleep(wait)
 
@@ -32,7 +33,7 @@ def retry_with_modification(task: str, max_retries: int = 3) -> str:
 
     for attempt in range(max_retries):
         if errors:
-            error_context = f"\n\nPrevious attempts failed:\n" + "\n".join(f"- {e}" for e in errors)
+            error_context = "\n\nPrevious attempts failed:\n" + "\n".join(f"- {e}" for e in errors)
             error_context += "\n\nAvoid these issues."
         else:
             error_context = ""
@@ -58,8 +59,16 @@ def fallback_chain(task: str) -> str:
 
     strategies = [
         ("Direct", lambda t: complete(MODEL, [user(t)], api_key=API_KEY).content),
-        ("Step-by-step", lambda t: complete(MODEL, [user(f"Think step by step: {t}")], api_key=API_KEY).content),
-        ("Simple", lambda t: complete(MODEL, [user(f"Give a simple, basic answer: {t}")], api_key=API_KEY).content),
+        (
+            "Step-by-step",
+            lambda t: complete(MODEL, [user(f"Think step by step: {t}")], api_key=API_KEY).content,
+        ),
+        (
+            "Simple",
+            lambda t: complete(
+                MODEL, [user(f"Give a simple, basic answer: {t}")], api_key=API_KEY
+            ).content,
+        ),
     ]
 
     for name, strategy in strategies:
@@ -106,15 +115,19 @@ def self_healing(task: str, max_attempts: int = 3) -> str:
     result = response.content
 
     for attempt in range(max_attempts):
-        validation = complete(MODEL, [
-            user(f"""Check if this response correctly addresses the task.
+        validation = complete(
+            MODEL,
+            [
+                user(f"""Check if this response correctly addresses the task.
 If there are errors or issues, describe them.
 If it's correct, respond with "VALID".
 
 Task: {task}
 
 Response: {result}""")
-        ], api_key=API_KEY).content
+            ],
+            api_key=API_KEY,
+        ).content
 
         print(f"Validation {attempt + 1}: {validation[:100]}...")
 
@@ -122,8 +135,10 @@ Response: {result}""")
             print("Response validated successfully")
             return result
 
-        result = complete(MODEL, [
-            user(f"""Fix the issues identified:
+        result = complete(
+            MODEL,
+            [
+                user(f"""Fix the issues identified:
 
 Task: {task}
 
@@ -132,7 +147,9 @@ Previous response: {result}
 Issues: {validation}
 
 Fixed response:""")
-        ], api_key=API_KEY).content
+            ],
+            api_key=API_KEY,
+        ).content
 
         print(f"Self-healed attempt {attempt + 1}")
 

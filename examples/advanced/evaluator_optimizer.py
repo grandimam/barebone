@@ -1,6 +1,7 @@
 import os
 
-from barebone import complete, user
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -16,8 +17,10 @@ def evaluate_and_optimize(task: str, max_iterations: int = 3) -> str:
     print(f"Initial output:\n{output}\n")
 
     for i in range(max_iterations):
-        evaluation = complete(MODEL, [
-            user(f"""Evaluate this output for the task: "{task}"
+        evaluation = complete(
+            MODEL,
+            [
+                user(f"""Evaluate this output for the task: "{task}"
 
 Output:
 {output}
@@ -25,7 +28,9 @@ Output:
 Rate 1-10 and list specific improvements needed.
 If score >= 8, just respond "GOOD".
 """)
-        ], api_key=API_KEY).content
+            ],
+            api_key=API_KEY,
+        ).content
 
         print(f"Iteration {i + 1} evaluation:\n{evaluation}\n")
 
@@ -33,8 +38,10 @@ If score >= 8, just respond "GOOD".
             print("Output passed evaluation!")
             break
 
-        response = complete(MODEL, [
-            user(f"""Improve this output based on feedback.
+        response = complete(
+            MODEL,
+            [
+                user(f"""Improve this output based on feedback.
 
 Original task: {task}
 
@@ -45,7 +52,9 @@ Feedback:
 {evaluation}
 
 Provide improved output:""")
-        ], api_key=API_KEY)
+            ],
+            api_key=API_KEY,
+        )
         output = response.content
         print(f"Improved output:\n{output}\n")
 
@@ -60,24 +69,33 @@ def critic_loop(task: str) -> str:
     output = complete(MODEL, [user(task)], api_key=API_KEY, temperature=0.9).content
     print(f"Generator:\n{output}\n")
 
-    critique = complete(MODEL, [
-        user(f"""You are a harsh critic. Find 2 specific problems with this:
+    critique = complete(
+        MODEL,
+        [
+            user(f"""You are a harsh critic. Find 2 specific problems with this:
 
 {output}
 
 Be specific and constructive.""")
-    ], api_key=API_KEY, temperature=0.3).content
+        ],
+        api_key=API_KEY,
+        temperature=0.3,
+    ).content
     print(f"Critic:\n{critique}\n")
 
-    final = complete(MODEL, [
-        user(f"""Revise your work based on this critique:
+    final = complete(
+        MODEL,
+        [
+            user(f"""Revise your work based on this critique:
 
 Original: {output}
 
 Critique: {critique}
 
 Revised version:""")
-    ], api_key=API_KEY).content
+        ],
+        api_key=API_KEY,
+    ).content
 
     print(f"Revised:\n{final}")
     return final

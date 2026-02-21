@@ -1,9 +1,9 @@
 import os
 
 from dotenv import load_dotenv
+
 from barebone import Agent
 from barebone import tool
-
 
 load_dotenv()
 
@@ -19,7 +19,7 @@ def calculate(expression: str) -> str:
 
 
 def main():
-    api_key = os.getenv('ANTHROPIC_API_KEY')
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     agent = Agent("claude-sonnet-4-20250514", api_key=api_key, tools=[get_weather, calculate])
     print(agent.run_sync("What's the weather in Tokyo?").content)
     print(agent.run_sync("What is 123 * 456?").content)

@@ -1,8 +1,10 @@
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
-from barebone import complete, user
+from barebone import complete
+from barebone import user
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
@@ -43,8 +45,12 @@ def sentiment_analysis():
     ]
 
     for text in texts:
-        response = complete(MODEL, [user(f"Analyze the sentiment: {text}")],
-                            api_key=API_KEY, response_model=Sentiment)
+        response = complete(
+            MODEL,
+            [user(f"Analyze the sentiment: {text}")],
+            api_key=API_KEY,
+            response_model=Sentiment,
+        )
         result = response.parsed
         print(f"\nText: {text}")
         print(f"  Sentiment: {result.sentiment} ({result.confidence:.0%})")
@@ -61,8 +67,12 @@ def entity_extraction():
     Cupertino headquarters. The deal was also celebrated in New York.
     """
 
-    response = complete(MODEL, [user(f"Extract all entities from this text:\n\n{text}")],
-                        api_key=API_KEY, response_model=Extraction)
+    response = complete(
+        MODEL,
+        [user(f"Extract all entities from this text:\n\n{text}")],
+        api_key=API_KEY,
+        response_model=Extraction,
+    )
     result = response.parsed
 
     print(f"Summary: {result.summary}")
@@ -110,8 +120,12 @@ def chained_structured():
         risks: list[str]
         recommendation: str
 
-    plan_response = complete(MODEL, [user("Create a plan to learn machine learning in 3 months")],
-                             api_key=API_KEY, response_model=Plan)
+    plan_response = complete(
+        MODEL,
+        [user("Create a plan to learn machine learning in 3 months")],
+        api_key=API_KEY,
+        response_model=Plan,
+    )
     plan = plan_response.parsed
 
     print(f"Goal: {plan.goal}")
@@ -120,8 +134,12 @@ def chained_structured():
         print(f"  {step.step_number}. {step.action}")
         print(f"     Expected: {step.expected_outcome}")
 
-    eval_response = complete(MODEL, [user(f"Evaluate this plan:\n\n{plan.model_dump_json()}")],
-                             api_key=API_KEY, response_model=Evaluation)
+    eval_response = complete(
+        MODEL,
+        [user(f"Evaluate this plan:\n\n{plan.model_dump_json()}")],
+        api_key=API_KEY,
+        response_model=Evaluation,
+    )
     evaluation = eval_response.parsed
 
     print(f"\nFeasibility: {evaluation.feasibility:.0%}")

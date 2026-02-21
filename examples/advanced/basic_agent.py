@@ -1,7 +1,9 @@
 import asyncio
 import os
 
-from barebone import Agent, Hooks, tool
+from barebone import Agent
+from barebone import Hooks
+from barebone import tool
 
 API_KEY = os.environ["ANTHROPIC_API_KEY"]
 MODEL = "claude-sonnet-4-20250514"
