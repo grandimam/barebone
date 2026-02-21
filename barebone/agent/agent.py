@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Literal
 
-from barebone.agent.core import _get_router
+from barebone.agent.router import Router
 from barebone.agent.hooks import Hooks
 from barebone.tools.base import is_tool_class
 from barebone.tools.base import tools_to_schema
 from barebone.common.dataclasses import ToolDef, Message, Response, Done, StreamEvent
 
 _BUILTIN_TOOLS: dict[str, type] = {}
+
+Provider = Literal["anthropic", "openai-codex", "openrouter"]
 
 
 def _get_builtin_tools() -> dict[str, type]:
@@ -33,13 +35,34 @@ def _get_builtin_tools() -> dict[str, type]:
     return _BUILTIN_TOOLS
 
 
+def _create_router(provider: Provider, api_key: str | None = None) -> Router:
+    if provider == "anthropic":
+        if not api_key:
+            raise ValueError("api_key is required for anthropic provider")
+        if api_key.startswith("sk-ant-oat"):
+            return Router(anthropic_oauth=api_key)
+        return Router(anthropic_api_key=api_key)
+
+    elif provider == "openai-codex":
+        return Router(codex=True)
+
+    elif provider == "openrouter":
+        if not api_key:
+            raise ValueError("api_key is required for openrouter provider")
+        return Router(openrouter=api_key)
+
+    else:
+        raise ValueError(f"Unknown provider: {provider}")
+
+
 class Agent:
 
     def __init__(
         self,
         model: str,
         *,
-        api_key: str,
+        provider: Provider,
+        api_key: str | None = None,
         tools: list[Any] | None = None,
         system: str | None = None,
         hooks: Hooks | None = None,
@@ -48,8 +71,9 @@ class Agent:
         temperature: float | None = None,
     ):
         self._model = model
+        self._provider = provider
         self._system = system
-        self._router = _get_router(api_key)
+        self._router = _create_router(provider, api_key)
         self._hooks = hooks
         self._max_turns = max_turns
         self._max_tokens = max_tokens
