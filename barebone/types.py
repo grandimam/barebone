@@ -7,6 +7,22 @@ from dataclasses import field
 from typing import Any
 from typing import Literal
 from typing import Protocol
+from typing import Union
+
+
+@dataclass
+class TextContent:
+    type: Literal["text"]
+    text: str
+
+
+@dataclass
+class ImageContent:
+    type: Literal["image"]
+    source: str  # URL or base64 data URI
+
+
+Content = Union[TextContent, ImageContent]
 
 
 @dataclass
@@ -34,7 +50,7 @@ class Tool:
 @dataclass
 class Message:
     role: Literal["user", "assistant", "system"]
-    content: str | None = None
+    content: str | list[Content] | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_results: list[ToolResult] = field(default_factory=list)
 
@@ -67,6 +83,9 @@ class Provider(Protocol):
 
 
 __all__ = [
+    "TextContent",
+    "ImageContent",
+    "Content",
     "ToolCall",
     "ToolResult",
     "Tool",
