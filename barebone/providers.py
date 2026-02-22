@@ -7,7 +7,6 @@ import time
 from abc import ABC
 from abc import abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -17,8 +16,9 @@ from barebone.types import ImageContent
 from barebone.types import Message
 from barebone.types import Response
 from barebone.types import TextContent
-from barebone.types import Tool
 from barebone.types import ToolCall
+from barebone.types import NullableStr
+from barebone.types import OAuthCredentials
 
 ANTHROPIC_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token"
 ANTHROPIC_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
@@ -27,26 +27,6 @@ CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_API_URL = "https://chatgpt.com/backend-api/codex/responses"
 CODEX_JWT_CLAIM = "https://api.openai.com/auth"
-
-
-@dataclass
-class OAuthCredentials:
-    access_token: str
-    refresh_token: str
-    expires_at: float
-    account_id: str | None = None
-
-    @property
-    def is_expired(self) -> bool:
-        return time.time() >= self.expires_at
-
-
-def _to_tool(t: object) -> Tool:
-    if isinstance(t, Tool):
-        return t
-    if hasattr(t, "to_tool"):
-        return t.to_tool()
-    raise TypeError(f"Expected @tool decorated function, got {type(t)}")
 
 
 def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
@@ -64,7 +44,7 @@ def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
         return None
 
 
-def _extract_codex_account_id(token: str) -> str | None:
+def _extract_codex_account_id(token: str) -> NullableStr:
     payload = _decode_jwt_payload(token)
     if not payload:
         return None
@@ -73,7 +53,7 @@ def _extract_codex_account_id(token: str) -> str | None:
     return account_id if isinstance(account_id, str) else None
 
 
-class BaseProvider(ABC):
+class _BaseProvider(ABC):
     name: str = "base"
 
     @abstractmethod
@@ -81,7 +61,7 @@ class BaseProvider(ABC):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> Response: ...
@@ -91,18 +71,20 @@ class BaseProvider(ABC):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> AsyncIterator[Any]: ...
 
 
-class AnthropicProvider(BaseProvider):
+class AnthropicProvider(_BaseProvider):
     name = "anthropic"
+
+    _credentials_changed: bool = False
 
     def __init__(
         self,
-        api_key: str | None = None,
+        api_key: NullableStr = None,
         credentials: OAuthCredentials | None = None,
         model: str = "claude-sonnet-4-20250514",
     ):
@@ -122,7 +104,6 @@ class AnthropicProvider(BaseProvider):
                 self._client = anthropic.AsyncAnthropic(api_key=self._api_key)
             return self._client
 
-        # OAuth flow
         await self._ensure_valid_token()
         if not self._client or self._credentials_changed:
             self._client = anthropic.AsyncAnthropic(
@@ -131,8 +112,6 @@ class AnthropicProvider(BaseProvider):
             )
             self._credentials_changed = False
         return self._client
-
-    _credentials_changed: bool = False
 
     async def _ensure_valid_token(self) -> None:
         if not self._credentials:
@@ -282,7 +261,7 @@ class AnthropicProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> Response:
@@ -306,7 +285,7 @@ class AnthropicProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> AsyncIterator[Any]:
@@ -383,7 +362,7 @@ class AnthropicProvider(BaseProvider):
             await self._http_client.aclose()
 
 
-class CodexProvider(BaseProvider):
+class CodexProvider(_BaseProvider):
     name = "codex"
 
     def __init__(
@@ -512,7 +491,7 @@ class CodexProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> Response:
@@ -539,7 +518,7 @@ class CodexProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> AsyncIterator[Any]:
@@ -656,7 +635,7 @@ class CodexProvider(BaseProvider):
             self._client = None
 
 
-class OpenAIProvider(BaseProvider):
+class OpenAIProvider(_BaseProvider):
     name = "openai"
 
     def __init__(
@@ -748,7 +727,7 @@ class OpenAIProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> Response:
@@ -805,7 +784,7 @@ class OpenAIProvider(BaseProvider):
         self,
         messages: list[Message],
         tools: list[object] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
     ) -> AsyncIterator[Any]:
@@ -910,7 +889,6 @@ class OpenAIProvider(BaseProvider):
 
 
 __all__ = [
-    "BaseProvider",
     "AnthropicProvider",
     "CodexProvider",
     "OpenAIProvider",
