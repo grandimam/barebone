@@ -13,8 +13,10 @@ from typing import Any
 import anthropic
 import httpx
 
+from barebone.types import ImageContent
 from barebone.types import Message
 from barebone.types import Response
+from barebone.types import TextContent
 from barebone.types import Tool
 from barebone.types import ToolCall
 
@@ -171,6 +173,36 @@ class AnthropicProvider(BaseProvider):
         )
         self._credentials_changed = True
 
+    def _convert_content(self, content: str | list | None) -> str | list[dict[str, Any]]:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        result = []
+        for item in content:
+            if isinstance(item, TextContent):
+                result.append({"type": "text", "text": item.text})
+            elif isinstance(item, ImageContent):
+                source = item.source
+                if source.startswith("data:"):
+                    parts = source.split(",", 1)
+                    media_type = parts[0].split(":")[1].split(";")[0]
+                    data = parts[1] if len(parts) > 1 else ""
+                    result.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": data,
+                        },
+                    })
+                else:
+                    result.append({
+                        "type": "image",
+                        "source": {"type": "url", "url": source},
+                    })
+        return result
+
     def _to_api_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         result = []
         for msg in messages:
@@ -192,7 +224,10 @@ class AnthropicProvider(BaseProvider):
             elif msg.tool_calls:
                 content = []
                 if msg.content:
-                    content.append({"type": "text", "text": msg.content})
+                    if isinstance(msg.content, str):
+                        content.append({"type": "text", "text": msg.content})
+                    else:
+                        content.extend(self._convert_content(msg.content))
                 for tc in msg.tool_calls:
                     content.append(
                         {
@@ -204,7 +239,10 @@ class AnthropicProvider(BaseProvider):
                     )
                 result.append({"role": "assistant", "content": content})
             else:
-                result.append({"role": msg.role, "content": msg.content or ""})
+                result.append({
+                    "role": msg.role,
+                    "content": self._convert_content(msg.content),
+                })
         return result
 
     def _to_api_tools(self, tools: list[object] | None) -> list[dict[str, Any]] | None:
@@ -637,6 +675,22 @@ class OpenAIProvider(BaseProvider):
             self._client = httpx.AsyncClient(timeout=120.0)
         return self._client
 
+    def _convert_content(self, content: str | list | None) -> str | list[dict[str, Any]]:
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        result = []
+        for item in content:
+            if isinstance(item, TextContent):
+                result.append({"type": "text", "text": item.text})
+            elif isinstance(item, ImageContent):
+                result.append({
+                    "type": "image_url",
+                    "image_url": {"url": item.source},
+                })
+        return result
+
     def _to_api_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         result = []
         for msg in messages:
@@ -653,7 +707,7 @@ class OpenAIProvider(BaseProvider):
                 result.append(
                     {
                         "role": "assistant",
-                        "content": msg.content or "",
+                        "content": msg.content if isinstance(msg.content, str) else "",
                         "tool_calls": [
                             {
                                 "id": tc.id,
@@ -668,7 +722,10 @@ class OpenAIProvider(BaseProvider):
                     }
                 )
             else:
-                result.append({"role": msg.role, "content": msg.content or ""})
+                result.append({
+                    "role": msg.role,
+                    "content": self._convert_content(msg.content),
+                })
         return result
 
     def _to_api_tools(self, tools: list[object] | None) -> list[dict[str, Any]] | None:

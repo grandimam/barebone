@@ -11,6 +11,7 @@ from typing import Any
 from typing import Literal
 from typing import get_type_hints
 
+import httpx
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import create_model
@@ -284,19 +285,16 @@ def grep(pattern: str, path: str | None = None, file_glob: str = "**/*") -> str:
     return "\n".join(results)
 
 
+# Optional: try to import markdownify for better HTML conversion
+try:
+    from markdownify import markdownify as _markdownify
+except ImportError:
+    _markdownify = None
+
+
 @tool
 async def web_fetch(url: str, extract: str | None = None, timeout: int = 30) -> str:
     """Fetch a web page and convert to readable markdown/text."""
-    try:
-        import httpx
-    except ImportError:
-        raise ImportError("httpx is required: pip install httpx")
-
-    try:
-        from markdownify import markdownify
-    except ImportError:
-        markdownify = None
-
     headers = {
         "User-Agent": "Mozilla/5.0 (compatible; BareboneBot/1.0)",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -320,8 +318,8 @@ async def web_fetch(url: str, extract: str | None = None, timeout: int = 30) -> 
 
     html = response.text
 
-    if markdownify:
-        text = markdownify(html, heading_style="ATX", strip=["script", "style"])
+    if _markdownify:
+        text = _markdownify(html, heading_style="ATX", strip=["script", "style"])
     else:
         text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
         text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
@@ -349,15 +347,20 @@ def _format_search_results(query: str, results: list[dict]) -> str:
     return "\n".join(output)
 
 
+# Optional: try to import duckduckgo_search for web search
+try:
+    from duckduckgo_search import DDGS as _DDGS
+except ImportError:
+    _DDGS = None
+
+
 @tool
 async def web_search(query: str, num_results: int = 5) -> str:
     """Search the web using DuckDuckGo."""
-    try:
-        from duckduckgo_search import DDGS
-    except ImportError:
+    if _DDGS is None:
         raise ImportError("duckduckgo-search is required: pip install duckduckgo-search")
 
-    with DDGS() as ddgs:
+    with _DDGS() as ddgs:
         results = list(ddgs.text(query, max_results=num_results))
 
     return _format_search_results(query, results)
@@ -372,11 +375,6 @@ async def http_request(
     timeout: int = 30,
 ) -> str:
     """Make HTTP requests to APIs. Supports GET, POST, PUT, PATCH, DELETE."""
-    try:
-        import httpx
-    except ImportError:
-        raise ImportError("httpx is required: pip install httpx")
-
     request_headers = headers or {}
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -430,4 +428,8 @@ __all__ = [
     "web_fetch",
     "web_search",
     "http_request",
+    # Internal (for testing)
+    "_extract_description",
+    "_build_pydantic_model",
+    "_parse_response",
 ]

@@ -1,21 +1,6 @@
 # barebone
 
-LLM primitives for Python. Build agents your way.
-
-```python
-import os
-from barebone import Agent, tool
-
-@tool
-def get_weather(city: str) -> str:
-    return f"72°F in {city}"
-
-api_key = os.environ["ANTHROPIC_API_KEY"]
-agent = Agent("claude-sonnet-4", api_key=api_key, tools=[get_weather])
-print(agent.run_sync("Weather in Tokyo?").content)
-```
-
-## Install
+Primitives for building AI agents in Python.
 
 ```bash
 pip install barebone
@@ -24,57 +9,104 @@ pip install barebone
 ## Quick Start
 
 ```python
-import os
-from barebone import Agent, tool
+from barebone import Agent
 
-@tool
-def calculate(expression: str) -> str:
-    return str(eval(expression))
-
-api_key = os.environ["ANTHROPIC_API_KEY"]
-agent = Agent("claude-sonnet-4", api_key=api_key, tools=[calculate])
-response = agent.run_sync("What is 123 * 456?")
+agent = Agent(api_key="sk-ant-...", model="claude-sonnet-4-20250514")
+response = agent.run_sync("What is 2 + 2?")
 print(response.content)
 ```
 
 ## Agent
 
-The `Agent` class handles the tool loop automatically:
-
 ```python
-import os
-from barebone import Agent
+from barebone import Agent, tool
 
-api_key = os.environ["ANTHROPIC_API_KEY"]
+@tool
+def get_weather(city: str) -> str:
+    return f"72F in {city}"
+
 agent = Agent(
-    "claude-sonnet-4",
-    api_key=api_key,
-    tools=[calculate, "Glob", "Read"],  # Mix custom and built-in tools
+    api_key="sk-ant-...",
+    model="claude-sonnet-4-20250514",
+    tools=[get_weather],
     system="You are a helpful assistant.",
-    max_turns=10,  # Safety limit
+    max_tokens=8192,
+    temperature=0.7,
+    timeout=30.0,  # Optional timeout in seconds
 )
 
 # Sync
-response = agent.run_sync("What files are here?")
+response = agent.run_sync("What's the weather in Tokyo?")
 
 # Async
-response = await agent.run("What files are here?")
-
-# Streaming
-async for event in agent.stream("Write a poem"):
-    if hasattr(event, "text"):
-        print(event.text, end="")
+response = await agent.run("What's the weather in Tokyo?")
 ```
 
-### Multi-turn Conversations
+### Streaming
 
 ```python
-agent = Agent("claude-sonnet-4", api_key=api_key)
+async for event in agent.stream("Write a poem"):
+    if event["type"] == "text_delta":
+        print(event["text"], end="", flush=True)
+    elif event["type"] == "done":
+        print()
+```
 
+### Conversation
+
+```python
 response = agent.run_sync("My name is Alice.")
 response = agent.run_sync("What's my name?")  # Remembers context
 
+print(agent.messages)  # View history
 agent.clear_messages()  # Reset conversation
+```
+
+### Resource Cleanup
+
+```python
+# Context manager (recommended)
+async with Agent(api_key="...", model="...") as agent:
+    response = await agent.run("Hello")
+
+# Manual cleanup
+agent = Agent(api_key="...", model="...")
+try:
+    response = await agent.run("Hello")
+finally:
+    await agent.close()
+```
+
+### Vision
+
+```python
+# Image URL
+response = await agent.run(
+    "What's in this image?",
+    images=["https://example.com/photo.jpg"]
+)
+
+# Base64 data URI
+response = await agent.run(
+    "Describe this image",
+    images=["data:image/png;base64,iVBORw0KGgo..."]
+)
+
+# Multiple images
+response = await agent.run(
+    "Compare these images",
+    images=["https://example.com/a.jpg", "https://example.com/b.jpg"]
+)
+```
+
+### Timeout
+
+```python
+# Per-agent timeout
+agent = Agent(api_key="...", model="...", timeout=30.0)
+
+# Per-request timeout
+response = await agent.run("Hello", timeout=10.0)
 ```
 
 ## Tools
@@ -85,235 +117,121 @@ agent.clear_messages()  # Reset conversation
 from barebone import tool
 
 @tool
-def search(query: str, limit: int = 10) -> str:
-    return f"Found {limit} results for {query}"
+def calculate(expression: str) -> str:
+    return str(eval(expression))
 
 @tool("custom_name")
 def my_func(x: int) -> int:
     return x * 2
+
+@tool
+async def fetch_data(url: str) -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        return response.text
 ```
 
-### Tool Class
-
-For more control, use the `Tool` class:
+### Dynamic Tools
 
 ```python
-from barebone import Tool, Param
+agent = Agent(api_key="...", model="...")
 
-class GetWeather(Tool):
-    """Get weather for a city."""
-    city: str = Param(description="City name")
-    units: str = Param(default="fahrenheit")
+@tool
+def new_tool() -> str:
+    return "result"
 
-    def execute(self) -> str:
-        return f"72° in {self.city}"
+agent.add_tool(new_tool)
 ```
 
 ### Built-in Tools
 
 ```python
-from barebone import Read, Write, Edit, Bash, Glob, Grep
-from barebone import WebFetch, WebSearch, HttpRequest
-from barebone import Python
+from barebone import read, write, edit, bash, glob, grep
+from barebone import web_fetch, web_search, http_request
 
-# Use by name with Agent
-agent = Agent("claude-sonnet-4", api_key=api_key, tools=["Read", "Bash", "Glob"])
+agent = Agent(
+    api_key="...",
+    model="...",
+    tools=[read, write, bash, glob],
+)
 ```
 
 | Tool | Description |
 |------|-------------|
-| `Read` | Read files |
-| `Write` | Write files |
-| `Edit` | Find and replace |
-| `Bash` | Run commands |
-| `Glob` | Find files by pattern |
-| `Grep` | Search file contents |
-| `WebFetch` | Fetch web pages |
-| `WebSearch` | Search the web |
-| `HttpRequest` | HTTP requests |
-| `Python` | Execute Python |
+| `read` | Read file contents |
+| `write` | Write to file |
+| `edit` | Find and replace in file |
+| `bash` | Execute shell commands |
+| `glob` | Find files by pattern |
+| `grep` | Search file contents |
+| `web_fetch` | Fetch web pages |
+| `web_search` | Search the web |
+| `http_request` | HTTP requests |
 
-## Hooks
+## Providers
 
-Control tool execution:
+Auto-detected from API key prefix:
 
-```python
-from barebone import Agent, Hooks
+| Prefix | Provider |
+|--------|----------|
+| `sk-ant-` | Anthropic |
+| `sk-` | OpenAI |
 
-hooks = Hooks()
-
-@hooks.before
-def log_call(tool_call):
-    print(f"Calling: {tool_call.name}")
-
-@hooks.before
-def block_dangerous(tool_call):
-    if tool_call.name == "Bash":
-        if "rm " in tool_call.arguments.get("command", ""):
-            raise Hooks.Deny("Dangerous command blocked")
-
-@hooks.after
-def log_result(tool_call, result):
-    print(f"Result: {result[:100]}")
-
-agent = Agent("claude-sonnet-4", api_key=api_key, tools=["Bash"], hooks=hooks)
-```
-
-## Primitives
-
-For full control, use the primitives directly:
+Or use providers directly:
 
 ```python
-import os
-from barebone import complete, execute, user, tool_result
+from barebone import Agent, AnthropicProvider, OpenAIProvider
 
-api_key = os.environ["ANTHROPIC_API_KEY"]
-tools = [GetWeather]
-messages = [user("What's the weather in Paris?")]
+provider = AnthropicProvider(api_key="sk-ant-...", model="claude-sonnet-4-20250514")
+agent = Agent(provider=provider)
 
-while True:
-    response = complete("claude-sonnet-4", messages, api_key=api_key, tools=tools)
-
-    if not response.tool_calls:
-        print(response.content)
-        break
-
-    for tc in response.tool_calls:
-        result = execute(tc, tools)
-        messages.append(tool_result(tc, result))
+provider = OpenAIProvider(api_key="sk-...", model="gpt-4o")
+agent = Agent(provider=provider)
 ```
 
-### Streaming
+## Types
 
 ```python
-from barebone import astream, user
-from barebone.common.dataclasses import TextDelta, Done
+from barebone import Message, Response, Tool, ToolCall, ToolResult
+from barebone import TextContent, ImageContent
 
-async for event in astream("claude-sonnet-4", [user("Write a poem")], api_key=api_key):
-    if isinstance(event, TextDelta):
-        print(event.text, end="", flush=True)
-    elif isinstance(event, Done):
-        print(f"\n\nTokens: {event.response.usage.total_tokens}")
+# Message with text
+Message(role="user", content="Hello")
+
+# Message with images
+Message(role="user", content=[
+    TextContent(type="text", text="What's this?"),
+    ImageContent(type="image", source="https://example.com/img.png"),
+])
+
+# Response
+response.content      # str | None
+response.tool_calls   # list[ToolCall]
+response.stop_reason  # str
+
+# ToolCall
+tc.id         # str
+tc.name       # str
+tc.arguments  # dict
 ```
 
-### Structured Output
+## Examples
 
-```python
-from pydantic import BaseModel
-from barebone import complete, user
+See `examples/` for patterns:
 
-class Answer(BaseModel):
-    answer: str
-    confidence: float
-
-response = complete(
-    "claude-sonnet-4",
-    [user("What is the capital of France?")],
-    api_key=api_key,
-    response_model=Answer,
-)
-print(response.parsed.answer)       # "Paris"
-print(response.parsed.confidence)   # 0.99
-```
-
-### Async Primitives
-
-```python
-from barebone import acomplete, aexecute, astream
-
-response = await acomplete("claude-sonnet-4", messages, api_key=api_key, tools=tools)
-result = await aexecute(tool_call, tools)
-
-async for event in astream("claude-sonnet-4", messages, api_key=api_key):
-    ...
-```
-
-## Memory
-
-Persist conversations:
-
-```python
-from barebone import Memory
-
-memory = Memory("./chat.db")  # SQLite
-memory.log("user", "Hello")
-memory.log("assistant", "Hi there!")
-
-messages = memory.get_messages()
-```
-
-## Authentication
-
-Pass the API key explicitly:
-
-```python
-import os
-
-api_key = os.environ["ANTHROPIC_API_KEY"]  # or OPENROUTER_API_KEY
-agent = Agent("claude-sonnet-4", api_key=api_key)
-```
-
-## API Reference
-
-### Agent
-
-```python
-Agent(
-    model: str,
-    *,
-    api_key: str,             # Required
-    tools: list = None,       # Tool classes, @tool functions, or "Read"/"Bash"
-    system: str = None,
-    memory: Memory = None,
-    hooks: Hooks = None,
-    max_turns: int = 10,
-)
-```
-
-| Method | Description |
-|--------|-------------|
-| `run(prompt)` | Async tool loop, returns Response |
-| `run_sync(prompt)` | Sync wrapper |
-| `stream(prompt)` | Async generator yielding events |
-| `clear_messages()` | Reset conversation |
-| `add_tool(tool)` | Add tool dynamically |
-
-| Property | Description |
-|----------|-------------|
-| `messages` | Conversation history |
-| `tools` | Resolved ToolDefs |
-
-### Primitives
-
-| Function | Description |
-|----------|-------------|
-| `complete(model, messages, **kwargs)` | Single LLM call |
-| `acomplete(model, messages, **kwargs)` | Async LLM call |
-| `stream(model, messages, **kwargs)` | Stream response (returns async iterator) |
-| `astream(model, messages, **kwargs)` | Async stream |
-| `execute(tool_call, tools)` | Execute tool |
-| `aexecute(tool_call, tools)` | Async execute |
-| `user(content)` | Create user message |
-| `assistant(content)` | Create assistant message |
-| `tool_result(tool_call, result)` | Create tool result |
-
-**complete/acomplete kwargs:**
-- `api_key` — Required. Anthropic or OpenRouter API key
-- `system` — System prompt
-- `tools` — List of tools
-- `response_model` — Pydantic model for structured output
-- `max_tokens` — Max response tokens (default: 8192)
-- `temperature` — Sampling temperature
-- `timeout` — Timeout in seconds (raises `asyncio.TimeoutError`)
-
-### Hooks
-
-| Method | Description |
-|--------|-------------|
-| `@hooks.before` | Before hook. Raise `Deny` to reject. |
-| `@hooks.after` | After hook. Return value replaces result. |
-| `hooks.run(tool_call, tools)` | Execute with hooks |
-| `hooks.arun(tool_call, tools)` | Async execute with hooks |
+- `01_basic.py` - Simple prompt/response
+- `02_tools.py` - Agent with tools
+- `03_streaming.py` - Real-time streaming
+- `04_conversation.py` - Multi-turn conversation
+- `05_chaining.py` - Sequential prompts
+- `06_routing.py` - Query routing
+- `07_parallel.py` - Concurrent execution
+- `08_reflection.py` - Self-review
+- `09_planning.py` - Planning with tools
+- `10_orchestrator.py` - Coordinator pattern
+- `11_human_in_loop.py` - User confirmation
+- `12_vision.py` - Image/vision support
+- `13_timeout.py` - Timeout handling
 
 ## License
 

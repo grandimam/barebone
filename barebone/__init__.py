@@ -17,8 +17,11 @@ from .tools import tool
 from .tools import web_fetch
 from .tools import web_search
 from .tools import write
+from .types import Content
+from .types import ImageContent
 from .types import Message
 from .types import Response
+from .types import TextContent
 from .types import Tool
 from .types import ToolCall
 from .types import ToolResult
@@ -29,6 +32,9 @@ __all__ = [
     # Types
     "Agent",
     "Message",
+    "Content",
+    "TextContent",
+    "ImageContent",
     "Tool",
     "ToolCall",
     "ToolResult",

@@ -61,9 +61,9 @@ class TestDecodeJwtPayload:
         import base64
 
         payload = {"sub": "123", "exp": 9999999999}
-        encoded_payload = base64.urlsafe_b64encode(
-            json.dumps(payload).encode()
-        ).decode().rstrip("=")
+        encoded_payload = (
+            base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        )
         token = f"header.{encoded_payload}.signature"
 
         result = _decode_jwt_payload(token)
