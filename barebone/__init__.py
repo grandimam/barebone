@@ -1,4 +1,8 @@
 from .agent import Agent
+from .oauth import create_authorization_flow
+from .oauth import exchange_code_for_tokens
+from .oauth import extract_account_id
+from .oauth import login_openai_codex
 from .providers import AnthropicProvider
 from .providers import CodexProvider
 from .providers import OpenAIProvider
@@ -41,6 +45,10 @@ __all__ = [
     "CodexProvider",
     "OpenAIProvider",
     "OAuthCredentials",
+    "login_openai_codex",
+    "exchange_code_for_tokens",
+    "create_authorization_flow",
+    "extract_account_id",
     "tool",
     "Question",
     "QuestionOption",
