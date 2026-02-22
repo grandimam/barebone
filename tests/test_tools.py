@@ -1,8 +1,5 @@
 import pytest
 
-from barebone.tools import _build_pydantic_model
-from barebone.tools import _extract_description
-from barebone.tools import _parse_response
 from barebone.tools import edit
 from barebone.tools import glob
 from barebone.tools import grep
@@ -11,6 +8,9 @@ from barebone.tools import QuestionOption
 from barebone.tools import read
 from barebone.tools import tool
 from barebone.tools import write
+from barebone.tools.base import _build_pydantic_model
+from barebone.tools.base import _extract_description
+from barebone.tools.builtin import _parse_response
 
 
 class TestToolDecorator:

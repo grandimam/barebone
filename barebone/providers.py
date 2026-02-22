@@ -16,6 +16,7 @@ from barebone.types import ImageContent
 from barebone.types import Message
 from barebone.types import Response
 from barebone.types import TextContent
+from barebone.types import Tool
 from barebone.types import ToolCall
 from barebone.types import NullableStr
 from barebone.types import OAuthCredentials
@@ -51,6 +52,14 @@ def _extract_codex_account_id(token: str) -> NullableStr:
     auth_claim = payload.get(CODEX_JWT_CLAIM, {})
     account_id = auth_claim.get("chatgpt_account_id")
     return account_id if isinstance(account_id, str) else None
+
+
+def _to_tool(obj: Any) -> Tool:
+    if isinstance(obj, Tool):
+        return obj
+    if hasattr(obj, "to_tool"):
+        return obj.to_tool()
+    raise TypeError(f"Expected @tool decorated function or Tool, got {type(obj)}")
 
 
 class _BaseProvider(ABC):
@@ -892,5 +901,4 @@ __all__ = [
     "AnthropicProvider",
     "CodexProvider",
     "OpenAIProvider",
-    "OAuthCredentials",
 ]

@@ -1,11 +1,11 @@
 import httpx
 import json
 
-from barebone.types import NullableStr
-
-from typing import Literal
 from typing import Any
-from tools import tool
+from typing import Literal
+
+from barebone.tools.base import tool
+from barebone.types import NullableStr
 
 from markdownify import markdownify
 from duckduckgo_search import DDGS as _DDGS
