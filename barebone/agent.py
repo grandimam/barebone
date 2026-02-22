@@ -17,6 +17,7 @@ from barebone.types import TextContent
 from barebone.types import Tool
 from barebone.types import ToolCall
 from barebone.types import ToolResult
+from barebone.types import NullableStr
 
 
 def _detect_provider(api_key: str) -> str:
@@ -42,12 +43,12 @@ def _create_provider(api_key: str, model: str) -> BaseProvider:
 class Agent:
     def __init__(
         self,
-        model: str | None = None,
-        api_key: str | None = None,
+        model: NullableStr = None,
+        api_key: NullableStr = None,
         *,
         provider: BaseProvider | None = None,
         tools: list[Callable] | None = None,
-        system: str | None = None,
+        system: NullableStr = None,
         messages: list[Message] | None = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
@@ -90,7 +91,7 @@ class Agent:
         return self._tools
 
     @property
-    def system(self) -> str | None:
+    def system(self) -> NullableStr:
         return self._system
 
     async def __aenter__(self) -> "Agent":

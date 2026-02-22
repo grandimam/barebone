@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+import time
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 from typing import Literal
-from typing import Protocol
 from typing import Union
+from pydantic import BaseModel
+
+
+type NullableStr = str | None
 
 
 @dataclass
@@ -19,10 +23,7 @@ class TextContent:
 @dataclass
 class ImageContent:
     type: Literal["image"]
-    source: str  # URL or base64 data URI
-
-
-Content = Union[TextContent, ImageContent]
+    source: str
 
 
 @dataclass
@@ -57,29 +58,35 @@ class Message:
 
 @dataclass
 class Response:
-    content: str | None = None
+    content: NullableStr = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     stop_reason: str = "stop"
 
 
-class Provider(Protocol):
-    async def complete(
-        self,
-        messages: list[Message],
-        tools: list[object] | None = None,
-        system: str | None = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
-    ) -> Response: ...
+@dataclass
+class OAuthCredentials:
+    access_token: str
+    refresh_token: str
+    expires_at: float
+    account_id: NullableStr = None
 
-    async def stream(
-        self,
-        messages: list[Message],
-        tools: list[object] | None = None,
-        system: str | None = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
-    ) -> AsyncIterator[Response]: ...
+    @property
+    def is_expired(self) -> bool:
+        return time.time() >= self.expires_at
+
+
+class QuestionOption(BaseModel):
+    label: str
+    description: str
+
+
+class Question(BaseModel):
+    question: str
+    header: str
+    options: list[QuestionOption]
+    multiSelect: bool = False
+
+Content = Union[TextContent, ImageContent]
 
 
 __all__ = [
