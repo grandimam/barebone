@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from barebone.providers import AnthropicProvider
-from barebone.providers import BaseProvider
+from barebone.providers import _BaseProvider
 from barebone.providers import OpenAIProvider
 from barebone.types import Content
 from barebone.types import ImageContent
@@ -29,7 +29,7 @@ def _detect_provider(api_key: str) -> str:
         return "anthropic"
 
 
-def _create_provider(api_key: str, model: str) -> BaseProvider:
+def _create_provider(api_key: str, model: str) -> _BaseProvider:
     provider_type = _detect_provider(api_key)
 
     if provider_type == "anthropic":
@@ -46,7 +46,7 @@ class Agent:
         model: NullableStr = None,
         api_key: NullableStr = None,
         *,
-        provider: BaseProvider | None = None,
+        provider: _BaseProvider | None = None,
         tools: list[Callable] | None = None,
         system: NullableStr = None,
         messages: list[Message] | None = None,
@@ -75,7 +75,7 @@ class Agent:
         self._temperature = temperature
 
     @property
-    def provider(self) -> BaseProvider:
+    def provider(self) -> _BaseProvider:
         return self._provider
 
     @property

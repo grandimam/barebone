@@ -32,7 +32,6 @@ async def main():
     )
     print(f"Plan:\n{response.content}\n")
 
-    # Simulate worker execution
     tasks = [
         ("Write a tagline for AI product", "copywriter"),
         ("Suggest color scheme", "designer"),
