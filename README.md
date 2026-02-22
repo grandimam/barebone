@@ -219,10 +219,13 @@ tc.arguments  # dict
 
 See `examples/` for patterns:
 
+**Basic**
 - `01_basic.py` - Simple prompt/response
 - `02_tools.py` - Agent with tools
 - `03_streaming.py` - Real-time streaming
 - `04_conversation.py` - Multi-turn conversation
+
+**Patterns**
 - `05_chaining.py` - Sequential prompts
 - `06_routing.py` - Query routing
 - `07_parallel.py` - Concurrent execution
@@ -230,8 +233,16 @@ See `examples/` for patterns:
 - `09_planning.py` - Planning with tools
 - `10_orchestrator.py` - Coordinator pattern
 - `11_human_in_loop.py` - User confirmation
+
+**Advanced**
 - `12_vision.py` - Image/vision support
 - `13_timeout.py` - Timeout handling
+
+**Multi-Agent**
+- `14_pipeline.py` - Sequential agent pipeline
+- `15_parallel.py` - Parallel analysis with synthesis
+- `16_handoff.py` - Agent-to-agent transfers
+- `17_debate.py` - Adversarial debate pattern
 
 ## License
 
