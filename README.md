@@ -6,6 +6,35 @@ Primitives for building AI agents in Python.
 pip install barebone
 ```
 
+## Philosophy
+
+barebone provides simple primitives not a framework. The orchestration layer is just Python.
+
+- **No DSLs or abstractions** — Use `if`, `for`, `async/await`, and functions you already know
+- **No hidden magic** — Tools are functions, agents are objects, everything is inspectable
+- **Primitives over frameworks** — Small, composable pieces that fit your architecture
+- **Python is the orchestrator** — Chain agents with function calls, not configuration files
+
+Complex workflows don't need complex frameworks. A `for` loop that calls agents sequentially is a pipeline. An `asyncio.gather()` is parallel execution. A function that picks which agent to call is routing. You already know how to build these.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Agent](#agent)
+  - [Streaming](#streaming)
+  - [Conversation](#conversation)
+  - [Resource Cleanup](#resource-cleanup)
+  - [Vision](#vision)
+  - [Timeout](#timeout)
+- [Tools](#tools)
+  - [@tool Decorator](#tool-decorator)
+  - [Dynamic Tools](#dynamic-tools)
+  - [Built-in Tools](#built-in-tools)
+- [Providers](#providers)
+- [Types](#types)
+- [Examples](#examples)
+- [License](#license)
+
 ## Quick Start
 
 ```python
@@ -32,7 +61,6 @@ agent = Agent(
     system="You are a helpful assistant.",
     max_tokens=8192,
     temperature=0.7,
-    timeout=30.0,  # Optional timeout in seconds
 )
 
 # Sync
@@ -57,9 +85,6 @@ async for event in agent.stream("Write a poem"):
 ```python
 response = agent.run_sync("My name is Alice.")
 response = agent.run_sync("What's my name?")  # Remembers context
-
-print(agent.messages)  # View history
-agent.clear_messages()  # Reset conversation
 ```
 
 ### Resource Cleanup
@@ -156,26 +181,26 @@ agent = Agent(
 )
 ```
 
-| Tool | Description |
-|------|-------------|
-| `read` | Read file contents |
-| `write` | Write to file |
-| `edit` | Find and replace in file |
-| `bash` | Execute shell commands |
-| `glob` | Find files by pattern |
-| `grep` | Search file contents |
-| `web_fetch` | Fetch web pages |
-| `web_search` | Search the web |
-| `http_request` | HTTP requests |
+| Tool           | Description              |
+| -------------- | ------------------------ |
+| `read`         | Read file contents       |
+| `write`        | Write to file            |
+| `edit`         | Find and replace in file |
+| `bash`         | Execute shell commands   |
+| `glob`         | Find files by pattern    |
+| `grep`         | Search file contents     |
+| `web_fetch`    | Fetch web pages          |
+| `web_search`   | Search the web           |
+| `http_request` | HTTP requests            |
 
 ## Providers
 
 Auto-detected from API key prefix:
 
-| Prefix | Provider |
-|--------|----------|
+| Prefix    | Provider  |
+| --------- | --------- |
 | `sk-ant-` | Anthropic |
-| `sk-` | OpenAI |
+| `sk-`     | OpenAI    |
 
 Or use providers directly:
 
@@ -220,12 +245,14 @@ tc.arguments  # dict
 See `examples/` for patterns:
 
 **Basic**
+
 - `01_basic.py` - Simple prompt/response
 - `02_tools.py` - Agent with tools
 - `03_streaming.py` - Real-time streaming
 - `04_conversation.py` - Multi-turn conversation
 
 **Patterns**
+
 - `05_chaining.py` - Sequential prompts
 - `06_routing.py` - Query routing
 - `07_parallel.py` - Concurrent execution
@@ -235,10 +262,12 @@ See `examples/` for patterns:
 - `11_human_in_loop.py` - User confirmation
 
 **Advanced**
+
 - `12_vision.py` - Image/vision support
 - `13_timeout.py` - Timeout handling
 
 **Multi-Agent**
+
 - `14_pipeline.py` - Sequential agent pipeline
 - `15_parallel.py` - Parallel analysis with synthesis
 - `16_handoff.py` - Agent-to-agent transfers
