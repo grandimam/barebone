@@ -1,16 +1,16 @@
 import os
 
-from dotenv import load_dotenv
-
 from barebone import Agent
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+API_KEY = os.environ.get("OPENAI_AUTH_KEY")
 
 
 def main():
-    agent = Agent(api_key=API_KEY, model="claude-sonnet-4-20250514")
+    agent = Agent(api_key=API_KEY, model="gpt-5.3-codex")
     response = agent.run_sync("What is the capital of France?")
     print(response.content)
 
