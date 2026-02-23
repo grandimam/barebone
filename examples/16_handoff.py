@@ -94,9 +94,9 @@ async def main():
     ]
 
     for query in queries:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Customer: {query}")
-        print("="*60)
+        print("=" * 60)
         await handoff(query)
 
 

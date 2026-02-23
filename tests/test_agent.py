@@ -343,7 +343,10 @@ class Test_Tutorial7_Streaming:
                 }
             else:
                 yield {"type": "text_delta", "text": "The answer is 4"}
-                yield {"type": "done", "response": Response(content="The answer is 4", tool_calls=[])}
+                yield {
+                    "type": "done",
+                    "response": Response(content="The answer is 4", tool_calls=[]),
+                }
 
         mock_provider = MagicMock()
         mock_provider.name = "mock"
@@ -474,9 +477,7 @@ class Test_Tutorial11_Vision:
     async def test_image_in_prompt(self):
         mock_provider = AsyncMock()
         mock_provider.name = "mock"
-        mock_provider.complete.return_value = Response(
-            content="I see an image", tool_calls=[]
-        )
+        mock_provider.complete.return_value = Response(content="I see an image", tool_calls=[])
 
         agent = Agent(provider=mock_provider)
         response = await agent.run("What is this?", images=["https://example.com/image.png"])

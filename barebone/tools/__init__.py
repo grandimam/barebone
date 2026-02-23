@@ -3,6 +3,7 @@ from __future__ import annotations
 from barebone.types import Question
 from barebone.types import QuestionOption
 
+from barebone.tools.base import execute_tools
 from barebone.tools.base import tool
 from barebone.tools.builtin import ask_user_question
 from barebone.tools.builtin import read
@@ -17,6 +18,7 @@ from barebone.tools.web import http_request
 
 
 __all__ = [
+    "execute_tools",
     "tool",
     "Question",
     "QuestionOption",

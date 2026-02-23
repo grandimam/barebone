@@ -34,7 +34,7 @@ async def main():
     rounds = 2
 
     print(f"Proposition: {proposition}\n")
-    print("="*60)
+    print("=" * 60)
 
     debate_history = []
 
@@ -59,13 +59,15 @@ async def main():
         debate_history.append(pro_response.content)
         debate_history.append(con_response.content)
 
-    print("="*60)
+    print("=" * 60)
     print("\n--- Judge's Decision ---\n")
 
-    debate_summary = "\n\n".join([
-        f"Round {i//2 + 1} - PRO: {debate_history[i]}\n\nRound {i//2 + 1} - CON: {debate_history[i+1]}"
-        for i in range(0, len(debate_history), 2)
-    ])
+    debate_summary = "\n\n".join(
+        [
+            f"Round {i // 2 + 1} - PRO: {debate_history[i]}\n\nRound {i // 2 + 1} - CON: {debate_history[i + 1]}"
+            for i in range(0, len(debate_history), 2)
+        ]
+    )
 
     verdict = await judge.run(f"Evaluate this debate and provide your verdict:\n\n{debate_summary}")
     print(verdict.content)
