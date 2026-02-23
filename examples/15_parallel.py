@@ -55,11 +55,13 @@ async def main():
     print("User View:")
     print(f"{results[2].content[:200]}...\n")
 
-    combined = "\n\n".join([
-        f"Technical: {results[0].content}",
-        f"Business: {results[1].content}",
-        f"User: {results[2].content}",
-    ])
+    combined = "\n\n".join(
+        [
+            f"Technical: {results[0].content}",
+            f"Business: {results[1].content}",
+            f"User: {results[2].content}",
+        ]
+    )
 
     print("Synthesizing...\n")
     final = await synthesizer.run(f"Synthesize these perspectives:\n\n{combined}")

@@ -11,6 +11,7 @@ import threading
 import time
 import webbrowser
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from typing import Callable
 from urllib.parse import parse_qs
@@ -22,12 +23,37 @@ import httpx
 from barebone.types import NullableStr
 from barebone.types import OAuthCredentials
 
+CODEX_AUTH_FILE = Path.home() / ".codex" / "auth.json"
 CODEX_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize"
 CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_REDIRECT_URI = "http://localhost:1455/auth/callback"
 CODEX_SCOPE = "openid profile email offline_access"
 CODEX_JWT_CLAIM = "https://api.openai.com/auth"
+
+
+def load_credentials(path: Path = CODEX_AUTH_FILE) -> OAuthCredentials:
+    payload = json.loads(path.read_text())
+    data = payload["tokens"]
+    return OAuthCredentials(
+        access_token=data["access_token"],
+        refresh_token=data["refresh_token"],
+        expires_at=data.get("expires_at", 0),
+        account_id=data.get("account_id"),
+    )
+
+
+def save_credentials(credentials: OAuthCredentials, path: Path = CODEX_AUTH_FILE) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "tokens": {
+            "access_token": credentials.access_token,
+            "refresh_token": credentials.refresh_token,
+            "expires_at": credentials.expires_at,
+            "account_id": credentials.account_id,
+        }
+    }
+    path.write_text(json.dumps(payload, indent=2))
 
 
 @dataclass
@@ -270,6 +296,8 @@ async def login_openai_codex(
 
 __all__ = [
     "OAuthCredentials",
+    "load_credentials",
+    "save_credentials",
     "login_openai_codex",
     "exchange_code_for_tokens",
     "create_authorization_flow",

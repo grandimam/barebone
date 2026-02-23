@@ -17,7 +17,9 @@ async def main():
     ) as agent:
         response = await agent.run(
             "What do you see in this image?",
-            images=["https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"],
+            images=[
+                "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"
+            ],
         )
         print(response.content)
 

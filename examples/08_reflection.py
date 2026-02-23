@@ -21,7 +21,9 @@ async def main():
     critique = response.content
     print(f"Critique: {critique}\n")
 
-    response = await agent.run(f"Rewrite this tweet based on the feedback:\n\nOriginal: {draft}\nFeedback: {critique}")
+    response = await agent.run(
+        f"Rewrite this tweet based on the feedback:\n\nOriginal: {draft}\nFeedback: {critique}"
+    )
     print(f"Final: {response.content}")
 
 

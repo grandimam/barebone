@@ -7,6 +7,7 @@ import time
 from abc import ABC
 from abc import abstractmethod
 from collections.abc import AsyncIterator
+from collections.abc import Callable
 from typing import Any
 
 import anthropic
@@ -28,6 +29,8 @@ CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 CODEX_API_URL = "https://chatgpt.com/backend-api/codex/responses"
 CODEX_JWT_CLAIM = "https://api.openai.com/auth"
+
+CredentialsCallback = Callable[[OAuthCredentials], None]
 
 
 def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
@@ -69,7 +72,7 @@ class _BaseProvider(ABC):
     async def complete(
         self,
         messages: list[Message],
-        tools: list[object] | None = None,
+        tools: list[Callable] | None = None,
         system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
@@ -79,7 +82,7 @@ class _BaseProvider(ABC):
     async def stream(
         self,
         messages: list[Message],
-        tools: list[object] | None = None,
+        tools: list[Callable] | None = None,
         system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
@@ -96,6 +99,7 @@ class AnthropicProvider(_BaseProvider):
         api_key: NullableStr = None,
         credentials: OAuthCredentials | None = None,
         model: str = "claude-sonnet-4-20250514",
+        on_credentials_refresh: CredentialsCallback | None = None,
     ):
         if not api_key and not credentials:
             raise ValueError("Either api_key or credentials required")
@@ -106,6 +110,7 @@ class AnthropicProvider(_BaseProvider):
         self._refresh_lock = asyncio.Lock()
         self._http_client: httpx.AsyncClient | None = None
         self._client: anthropic.AsyncAnthropic | None = None
+        self._on_credentials_refresh = on_credentials_refresh
 
     async def _get_client(self) -> anthropic.AsyncAnthropic:
         if self._api_key:
@@ -161,6 +166,9 @@ class AnthropicProvider(_BaseProvider):
         )
         self._credentials_changed = True
 
+        if self._on_credentials_refresh:
+            self._on_credentials_refresh(self._credentials)
+
     def _convert_content(self, content: str | list | None) -> str | list[dict[str, Any]]:
         if content is None:
             return ""
@@ -176,19 +184,23 @@ class AnthropicProvider(_BaseProvider):
                     parts = source.split(",", 1)
                     media_type = parts[0].split(":")[1].split(";")[0]
                     data = parts[1] if len(parts) > 1 else ""
-                    result.append({
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": data,
-                        },
-                    })
+                    result.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": data,
+                            },
+                        }
+                    )
                 else:
-                    result.append({
-                        "type": "image",
-                        "source": {"type": "url", "url": source},
-                    })
+                    result.append(
+                        {
+                            "type": "image",
+                            "source": {"type": "url", "url": source},
+                        }
+                    )
         return result
 
     def _to_api_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
@@ -227,10 +239,12 @@ class AnthropicProvider(_BaseProvider):
                     )
                 result.append({"role": "assistant", "content": content})
             else:
-                result.append({
-                    "role": msg.role,
-                    "content": self._convert_content(msg.content),
-                })
+                result.append(
+                    {
+                        "role": msg.role,
+                        "content": self._convert_content(msg.content),
+                    }
+                )
         return result
 
     def _to_api_tools(self, tools: list[object] | None) -> list[dict[str, Any]] | None:
@@ -378,11 +392,13 @@ class CodexProvider(_BaseProvider):
         self,
         credentials: OAuthCredentials,
         model: str = "gpt-4.1",
+        on_credentials_refresh: CredentialsCallback | None = None,
     ):
         self._credentials = credentials
         self._model = model
         self._refresh_lock = asyncio.Lock()
         self._client: httpx.AsyncClient | None = None
+        self._on_credentials_refresh = on_credentials_refresh
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -423,6 +439,9 @@ class CodexProvider(_BaseProvider):
             expires_at=time.time() + data["expires_in"],
             account_id=account_id,
         )
+
+        if self._on_credentials_refresh:
+            self._on_credentials_refresh(self._credentials)
 
     def _build_headers(self) -> dict[str, str]:
         headers = {
@@ -499,7 +518,7 @@ class CodexProvider(_BaseProvider):
     async def complete(
         self,
         messages: list[Message],
-        tools: list[object] | None = None,
+        tools: list[Callable] | None = None,
         system: NullableStr = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
@@ -508,6 +527,7 @@ class CodexProvider(_BaseProvider):
         tool_calls: list[ToolCall] = []
 
         async for event in self.stream(messages, tools, system, max_tokens, temperature):
+            print('what is the event: ', event)
             if event.get("type") == "text_delta":
                 content += event.get("text", "")
             elif event.get("type") == "tool_call_end":
@@ -673,10 +693,12 @@ class OpenAIProvider(_BaseProvider):
             if isinstance(item, TextContent):
                 result.append({"type": "text", "text": item.text})
             elif isinstance(item, ImageContent):
-                result.append({
-                    "type": "image_url",
-                    "image_url": {"url": item.source},
-                })
+                result.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": item.source},
+                    }
+                )
         return result
 
     def _to_api_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
@@ -710,10 +732,12 @@ class OpenAIProvider(_BaseProvider):
                     }
                 )
             else:
-                result.append({
-                    "role": msg.role,
-                    "content": self._convert_content(msg.content),
-                })
+                result.append(
+                    {
+                        "role": msg.role,
+                        "content": self._convert_content(msg.content),
+                    }
+                )
         return result
 
     def _to_api_tools(self, tools: list[object] | None) -> list[dict[str, Any]] | None:

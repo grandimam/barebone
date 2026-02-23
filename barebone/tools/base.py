@@ -7,10 +7,13 @@ from typing import Any
 from typing import get_type_hints
 
 from barebone.types import Tool
+from barebone.types import ToolCall
+from barebone.types import ToolResult
 from barebone.types import NullableStr
 
 from pydantic import Field
 from pydantic import create_model
+
 
 def tool(
     fn_or_name: Callable | NullableStr = None,
@@ -31,7 +34,6 @@ def _extract_description(fn: Callable) -> str:
         first_para = fn.__doc__.strip().split("\n\n")[0]
         return " ".join(line.strip() for line in first_para.split("\n"))
     return f"Execute {fn.__name__}"
-
 
 
 class _ToolWrapper:
@@ -65,7 +67,6 @@ class _ToolWrapper:
     @property
     def name(self) -> str:
         return self._name
-    
 
 
 def _build_pydantic_model(fn: Callable) -> type:
@@ -84,3 +85,57 @@ def _build_pydantic_model(fn: Callable) -> type:
             fields[name] = (annotation, Field(default=param.default))
 
     return create_model(fn.__name__, **fields)
+
+
+def _get_handler(name: str, tools: list[Callable]) -> Callable | None:
+    for t in tools:
+        if hasattr(t, "to_tool"):
+            tool_def = t.to_tool()
+            if tool_def.name == name:
+                return tool_def.handler
+        elif isinstance(t, Tool) and t.name == name:
+            return t.handler
+    return None
+
+
+async def execute_tools(
+    tool_calls: list[ToolCall],
+    tools: list[Callable],
+) -> list[ToolResult]:
+    results: list[ToolResult] = []
+
+    for tc in tool_calls:
+        handler = _get_handler(tc.name, tools)
+
+        if not handler:
+            results.append(
+                ToolResult(
+                    id=tc.id,
+                    content=f"Unknown tool: {tc.name}",
+                    is_error=True,
+                )
+            )
+            continue
+
+        try:
+            if inspect.iscoroutinefunction(handler):
+                output = await handler(**tc.arguments)
+            else:
+                output = handler(**tc.arguments)
+
+            results.append(
+                ToolResult(
+                    id=tc.id,
+                    content=str(output) if output is not None else "Success",
+                )
+            )
+        except Exception as e:
+            results.append(
+                ToolResult(
+                    id=tc.id,
+                    content=str(e),
+                    is_error=True,
+                )
+            )
+
+    return results

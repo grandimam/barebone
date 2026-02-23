@@ -6,9 +6,7 @@ from collections.abc import AsyncIterator
 from collections.abc import Callable
 from typing import Any
 
-from barebone.providers import AnthropicProvider
 from barebone.providers import _BaseProvider
-from barebone.providers import OpenAIProvider
 from barebone.types import Content
 from barebone.types import ImageContent
 from barebone.types import Message
@@ -20,54 +18,18 @@ from barebone.types import ToolResult
 from barebone.types import NullableStr
 
 
-def _detect_provider(api_key: str) -> str:
-    if api_key.startswith("sk-ant-"):
-        return "anthropic"
-    elif api_key.startswith("sk-"):
-        return "openai"
-    else:
-        return "anthropic"
-
-
-def _create_provider(api_key: str, model: str) -> _BaseProvider:
-    provider_type = _detect_provider(api_key)
-
-    if provider_type == "anthropic":
-        return AnthropicProvider(api_key=api_key, model=model)
-    elif provider_type == "openai":
-        return OpenAIProvider(api_key=api_key, model=model)
-    else:
-        raise ValueError(f"Unknown provider type: {provider_type}")
-
-
 class Agent:
     def __init__(
         self,
-        model: NullableStr = None,
-        api_key: NullableStr = None,
+        provider: _BaseProvider,
         *,
-        provider: _BaseProvider | None = None,
-        tools: list[Callable] | None = None,
+        tools: list[object] | None = None,
         system: NullableStr = None,
         messages: list[Message] | None = None,
         max_tokens: int = 8192,
         temperature: float | None = None,
-        timeout: float | None = None,
     ):
-        if not api_key and not provider:
-            raise ValueError("Either api_key or provider is required")
-
-        self._model = model
-        self._api_key = api_key
-        self._timeout = timeout
-
-        if provider:
-            self._provider = provider
-            self._provider_type = getattr(provider, "name", "custom")
-        else:
-            self._provider_type = _detect_provider(api_key)
-            self._provider = _create_provider(api_key, model)
-
+        self._provider = provider
         self._messages = messages if messages is not None else []
         self._tools = tools if tools is not None else []
         self._system = system
@@ -77,10 +39,6 @@ class Agent:
     @property
     def provider(self) -> _BaseProvider:
         return self._provider
-
-    @property
-    def provider_type(self) -> str:
-        return self._provider_type
 
     @property
     def messages(self) -> list[Message]:
@@ -122,7 +80,6 @@ class Agent:
                 content=f"Unknown tool: {tool_call.name}",
                 is_error=True,
             )
-
         try:
             if inspect.iscoroutinefunction(handler):
                 result = await handler(**tool_call.arguments)
@@ -136,11 +93,10 @@ class Agent:
             return ToolResult(id=tool_call.id, content=str(e), is_error=True)
 
     def _create_message(
-        self, prompt: str | list[Content], images: list[str] | None = None
+            self, 
+            prompt: NullableStr, 
+            images: list[str] | None = None,
     ) -> Message:
-        if isinstance(prompt, list):
-            return Message(role="user", content=prompt)
-
         if images:
             content: list[Content] = [TextContent(type="text", text=prompt)]
             for img in images:
@@ -151,10 +107,9 @@ class Agent:
 
     async def run(
         self,
-        prompt: str | list[Content],
+        prompt: NullableStr,
         *,
         images: list[str] | None = None,
-        max_iterations: int = 10,
         timeout: float | None = None,
     ) -> Response:
         effective_timeout = timeout or self._timeout
@@ -162,38 +117,33 @@ class Agent:
         async def _run() -> Response:
             self._messages.append(self._create_message(prompt, images))
 
-            response: Response | None = None
-            for _ in range(max_iterations):
-                response = await self._provider.complete(
-                    messages=self._messages,
-                    tools=self._tools,
-                    system=self._system,
-                    max_tokens=self._max_tokens,
-                    temperature=self._temperature,
+            response = await self._provider.complete(
+                messages=self._messages,
+                tools=self._tools,
+                system=self._system,
+                max_tokens=self._max_tokens,
+                temperature=self._temperature,
+            )
+
+            if not response.tool_calls:
+                if response.content:
+                    self._messages.append(Message(role="assistant", content=response.content))
+                return response
+
+            self._messages.append(
+                Message(
+                    role="assistant",
+                    content=response.content,
+                    tool_calls=response.tool_calls,
                 )
+            )
 
-                if not response.tool_calls:
-                    if response.content:
-                        self._messages.append(
-                            Message(role="assistant", content=response.content)
-                        )
-                    return response
+            results = []
+            for tc in response.tool_calls:
+                result = await self._execute_tool(tc)
+                results.append(result)
 
-                self._messages.append(
-                    Message(
-                        role="assistant",
-                        content=response.content,
-                        tool_calls=response.tool_calls,
-                    )
-                )
-
-                results = []
-                for tc in response.tool_calls:
-                    result = await self._execute_tool(tc)
-                    results.append(result)
-
-                self._messages.append(Message(role="user", tool_results=results))
-
+            self._messages.append(Message(role="user", tool_results=results))
             return response
 
         if effective_timeout:
@@ -205,12 +155,9 @@ class Agent:
         prompt: str | list[Content],
         *,
         images: list[str] | None = None,
-        max_iterations: int = 10,
         timeout: float | None = None,
     ) -> Response:
-        return asyncio.run(
-            self.run(prompt, images=images, max_iterations=max_iterations, timeout=timeout)
-        )
+        return asyncio.run(self.run(prompt, images=images, timeout=timeout))
 
     async def stream(
         self,
