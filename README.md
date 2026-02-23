@@ -1,6 +1,6 @@
 # barebone
 
-Primitives for building AI agents in Python.
+Barebone SDK provide lightweight primitives for building agents and agentic workflows in pure-python.
 
 ```bash
 pip install barebone

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -113,18 +112,6 @@ class Messages:
         return self._messages[index]
 
 
-@dataclass
-class OAuthCredentials:
-    access_token: str
-    refresh_token: str
-    expires_at: float
-    account_id: NullableStr = None
-
-    @property
-    def is_expired(self) -> bool:
-        return time.time() >= self.expires_at
-
-
 class QuestionOption(BaseModel):
     label: str
     description: str
@@ -140,14 +127,67 @@ class Question(BaseModel):
 Content = Union[TextContent, ImageContent]
 
 
+@dataclass
+class Request:
+    messages: list[Message]
+    id: str
+    tools: list[object] | None = None
+    system: NullableStr = None
+    max_tokens: int = 8192
+    temperature: float | None = None
+
+
+@dataclass
+class TextDelta:
+    id: str
+    text: str
+
+
+@dataclass
+class ToolCallStart:
+    id: str
+    request_id: str
+    name: str
+
+
+@dataclass
+class ToolCallEnd:
+    id: str
+    request_id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class Done:
+    id: str
+    response: Response
+
+
+@dataclass
+class Error:
+    id: str
+    error: str
+
+
+Event = TextDelta | ToolCallStart | ToolCallEnd | Done | Error
+
+
 __all__ = [
     "Content",
+    "Done",
+    "Error",
+    "Event",
     "ImageContent",
     "Message",
     "Messages",
+    "Request",
     "Response",
     "TextContent",
+    "TextDelta",
     "Tool",
     "ToolCall",
+    "ToolCallEnd",
+    "ToolCallStart",
     "ToolResult",
 ]
