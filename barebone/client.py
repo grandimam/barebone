@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-import asyncio
 from typing import Any
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 
 from openai import AsyncOpenAI
 
@@ -12,7 +10,6 @@ from .types import Done
 from .types import Error
 from .types import Event
 from .types import Message
-from .types import NullableStr
 from .types import Request
 from .types import Response
 from .types import TextContent
@@ -23,7 +20,7 @@ from .types import ToolCallEnd
 from .types import ToolCallStart
 
 
-class OpenAITransport:
+class LLMClient:
     def __init__(
         self,
         api_key: str,
@@ -80,8 +77,6 @@ class OpenAITransport:
         return result
 
     def _to_api_tools(self, tools: list[object] | None) -> list[dict[str, Any]] | None:
-        if not tools:
-            return None
         result: list[dict[str, Any]] = []
         for t in tools:
             tool_def = t.to_tool() if hasattr(t, "to_tool") else t
@@ -172,109 +167,3 @@ class OpenAITransport:
 
     async def close(self) -> None:
         await self._client.close()
-
-
-@dataclass
-class Session:
-    _inbox: asyncio.Queue[Request | None]
-    _outbox: asyncio.Queue[Event]
-
-    async def send(self, request: Request) -> None:
-        await self._inbox.put(request)
-
-    async def receive(self) -> Event:
-        return await self._outbox.get()
-
-    def events(self) -> AsyncIterator[Event]:
-        return _event_iterator(self._outbox)
-
-
-async def _event_iterator(queue: asyncio.Queue[Event]) -> AsyncIterator[Event]:
-    while True:
-        event = await queue.get()
-        yield event
-        if isinstance(event, (Done, Error)):
-            break
-
-
-class LLMClient:
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "anthropic/claude-sonnet-4",
-        base_url: str = "https://openrouter.ai/api/v1",
-    ) -> None:
-        self._transport = OpenAITransport(
-            api_key=api_key,
-            model=model,
-            base_url=base_url,
-        )
-
-    @asynccontextmanager
-    async def session(self) -> AsyncIterator[Session]:
-        inbox: asyncio.Queue[Request | None] = asyncio.Queue()
-        outbox: asyncio.Queue[Event] = asyncio.Queue()
-
-        async def worker() -> None:
-            while True:
-                request = await inbox.get()
-                if request is None:
-                    break
-                async for event in self._transport.stream(request):
-                    await outbox.put(event)
-
-        task = asyncio.create_task(worker())
-        try:
-            yield Session(_inbox=inbox, _outbox=outbox)
-        finally:
-            await inbox.put(None)
-            await task
-
-    async def complete(
-        self,
-        messages: list[Message],
-        tools: list[object] | None = None,
-        system: NullableStr = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
-    ) -> Response:
-        request = Request(
-            id="single",
-            messages=messages,
-            tools=tools,
-            system=system,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        async with self.session() as s:
-            await s.send(request)
-            async for event in s.events():
-                if isinstance(event, Done):
-                    return event.response
-                if isinstance(event, Error):
-                    raise RuntimeError(event.error)
-        raise RuntimeError("No response received")
-
-    async def stream(
-        self,
-        messages: list[Message],
-        tools: list[object] | None = None,
-        system: NullableStr = None,
-        max_tokens: int = 8192,
-        temperature: float | None = None,
-    ) -> AsyncIterator[Event]:
-        request = Request(
-            id="single",
-            messages=messages,
-            tools=tools,
-            system=system,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        async with self.session() as s:
-            await s.send(request)
-            async for event in s.events():
-                yield event
-
-    async def close(self) -> None:
-        await self._transport.close()

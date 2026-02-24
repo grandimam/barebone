@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
+
 from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -8,6 +11,7 @@ from typing import Any
 from typing import Literal
 from typing import Self
 from typing import Union
+from typing import AsyncIterator
 
 from pydantic import BaseModel
 
@@ -170,10 +174,47 @@ class Error:
     error: str
 
 
+@dataclass
+class Session:
+    _inbox: asyncio.Queue[Request | None]
+    _outbox: asyncio.Queue[Event]
+
+    async def send(self, request: Request) -> None:
+        await self._inbox.put(request)
+
+    async def receive(self) -> Event:
+        return await self._outbox.get()
+
+    async def events(self) -> AsyncIterator[Event]:
+        while True:
+            event = await self._outbox.get()
+            yield event
+            if isinstance(event, (Done, Error)):
+                break
+
+
 Event = TextDelta | ToolCallStart | ToolCallEnd | Done | Error
 
 
+@dataclass
+class AgentEvent:
+    type: str
+    data: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class Checkpoint:
+    agent_id: str
+    run_id: str
+    state: dict[str, Any]
+    status: str
+    created_at: str
+
+
 __all__ = [
+    "AgentEvent",
+    "Checkpoint",
     "Content",
     "Done",
     "Error",
@@ -183,6 +224,7 @@ __all__ = [
     "Messages",
     "Request",
     "Response",
+    "Session",
     "TextContent",
     "TextDelta",
     "Tool",
