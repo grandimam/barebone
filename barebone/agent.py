@@ -9,7 +9,12 @@ from typing import Any
 from typing import Callable
 from typing import Coroutine
 from enum import Enum
-from collections.abc import AsyncIterator
+
+from .types import AgentEvent
+from .types import Checkpoint
+from .memory import Storage
+from .memory import MemoryStorage
+from .memory import FileStorage
 
 
 class AgentStatus(Enum):
@@ -21,13 +26,6 @@ class AgentStatus(Enum):
 
 
 @dataclass
-class AgentEvent:
-    type: str
-    data: dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
-
-
-@dataclass
 class Context:
     agent_id: str
     run_id: str
@@ -35,21 +33,34 @@ class Context:
     status: AgentStatus = AgentStatus.PENDING
     started_at: datetime = field(default_factory=datetime.utcnow)
     _inbox: asyncio.Queue[AgentEvent] = field(default_factory=asyncio.Queue)
-    _checkpoint_callback: Callable[[], Coroutine[Any, Any, None]] | None = None
-    _suspend_callback: Callable[[str, dict], Coroutine[Any, Any, Any]] | None = None
+    _storage: Storage | None = None
 
     async def checkpoint(self) -> None:
-        if self._checkpoint_callback:
-            await self._checkpoint_callback()
+        if self._storage:
+            cp = Checkpoint(
+                agent_id=self.agent_id,
+                run_id=self.run_id,
+                state=self.state,
+                status=self.status.value,
+                created_at=datetime.utcnow().isoformat(),
+            )
+            await self._storage.save(self.agent_id, cp)
 
-    async def suspend(self, reason: str, **kwargs: Any) -> Any:
-        if self._suspend_callback:
-            return await self._suspend_callback(reason, kwargs)
-        event = await self._inbox.get()
+    async def suspend(self, reason: str, timeout: float | None = None) -> Any:
+        self.status = AgentStatus.SUSPENDED
+        await self.checkpoint()
+
+        if timeout:
+            try:
+                event = await asyncio.wait_for(self._inbox.get(), timeout=timeout)
+            except asyncio.TimeoutError:
+                self.status = AgentStatus.RUNNING
+                return None
+        else:
+            event = await self._inbox.get()
+
+        self.status = AgentStatus.RUNNING
         return event.data
-
-    async def emit(self, event: AgentEvent) -> None:
-        pass
 
     def receive_event(self, event: AgentEvent) -> None:
         self._inbox.put_nowait(event)
@@ -101,8 +112,9 @@ class AgentHandle:
         return self._result
 
 
-class Runtime:
-    def __init__(self) -> None:
+class AgentRunner:
+    def __init__(self, storage: Storage | None = None) -> None:
+        self._storage = storage or MemoryStorage()
         self._agents: dict[str, AgentHandle] = {}
 
     async def start(
@@ -119,6 +131,7 @@ class Runtime:
             run_id=run_id,
             state=state or {},
             status=AgentStatus.RUNNING,
+            _storage=self._storage,
         )
 
         handle = AgentHandle(agent_id=agent_id, _context=ctx)
@@ -128,8 +141,52 @@ class Runtime:
             try:
                 result = await agent_spec(ctx)
                 ctx.status = AgentStatus.COMPLETED
+                await ctx.checkpoint()
                 handle._result = result
                 return result
+            except asyncio.CancelledError:
+                ctx.status = AgentStatus.FAILED
+                raise
+            except Exception as e:
+                ctx.status = AgentStatus.FAILED
+                handle._error = e
+                raise
+
+        handle._task = asyncio.create_task(run_agent())
+        return handle
+
+    async def resume(
+        self,
+        agent_spec: AgentSpec,
+        agent_id: str,
+    ) -> AgentHandle | None:
+        checkpoint = await self._storage.load(agent_id)
+        if not checkpoint:
+            return None
+
+        run_id = str(uuid.uuid4())
+
+        ctx = Context(
+            agent_id=agent_id,
+            run_id=run_id,
+            state=checkpoint.state,
+            status=AgentStatus(checkpoint.status),
+            _storage=self._storage,
+        )
+
+        handle = AgentHandle(agent_id=agent_id, _context=ctx)
+        self._agents[agent_id] = handle
+
+        async def run_agent() -> Any:
+            try:
+                result = await agent_spec(ctx)
+                ctx.status = AgentStatus.COMPLETED
+                await ctx.checkpoint()
+                handle._result = result
+                return result
+            except asyncio.CancelledError:
+                ctx.status = AgentStatus.FAILED
+                raise
             except Exception as e:
                 ctx.status = AgentStatus.FAILED
                 handle._error = e
@@ -146,3 +203,10 @@ class Runtime:
         if handle and handle._task:
             handle._task.cancel()
             handle._context.status = AgentStatus.FAILED
+
+    async def list_checkpoints(self) -> list[str]:
+        if isinstance(self._storage, FileStorage):
+            return [p.stem for p in self._storage._path.glob("*.json")]
+        elif isinstance(self._storage, MemoryStorage):
+            return list(self._storage._data.keys())
+        return []
