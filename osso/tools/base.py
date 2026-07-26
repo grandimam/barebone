@@ -6,10 +6,10 @@ from collections.abc import Callable
 from typing import Any
 from typing import get_type_hints
 
-from barebone.types import Tool
-from barebone.types import ToolCall
-from barebone.types import ToolResult
-from barebone.types import NullableStr
+from osso.types import Tool
+from osso.types import ToolCall
+from osso.types import ToolResult
+from osso.types import NullableStr
 
 from pydantic import Field
 from pydantic import create_model

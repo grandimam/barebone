@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from barebone import (
+from osso import (
     agent,
     AgentEvent,
     AgentRunner,

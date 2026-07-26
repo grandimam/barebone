@@ -6,10 +6,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from barebone.tools.base import tool
-from barebone.types import NullableStr
-from barebone.types import QuestionOption
-from barebone.types import Question
+from osso.tools.base import tool
+from osso.types import NullableStr
+from osso.types import QuestionOption
+from osso.types import Question
 
 
 def _parse_response(response: str, options: list[QuestionOption], multi_select: bool) -> str:

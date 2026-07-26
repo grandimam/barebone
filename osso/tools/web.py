@@ -4,8 +4,8 @@ import json
 from typing import Any
 from typing import Literal
 
-from barebone.tools.base import tool
-from barebone.types import NullableStr
+from osso.tools.base import tool
+from osso.types import NullableStr
 
 from markdownify import markdownify
 from duckduckgo_search import DDGS as _DDGS
@@ -15,7 +15,7 @@ from duckduckgo_search import DDGS as _DDGS
 async def web_fetch(url: str, extract: NullableStr = None, timeout: int = 30) -> str:
     """Fetch a web page and convert to readable markdown/text."""
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; BareboneBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; OssoBot/1.0)",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
 
